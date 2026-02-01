@@ -31,11 +31,14 @@ export default defineConfig(({ mode }) => {
         outDir: 'dist',
         assetsDir: 'assets',
         sourcemap: false,
+        chunkSizeWarningLimit: 1000,
         rollupOptions: {
           output: {
             manualChunks: {
               vendor: ['react', 'react-dom'],
-              router: ['react-router-dom']
+              router: ['react-router-dom'],
+              ui: ['lucide-react', 'recharts'],
+              ai: ['@google/genai']
             }
           }
         }
