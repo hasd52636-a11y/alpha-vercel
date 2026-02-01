@@ -181,7 +181,7 @@ export class LinkService {
     }
     
     // 后备方案（服务端渲染或其他环境）
-    return 'http://localhost:3001';
+    return 'http://localhost:3003';
   }
 
   // 获取项目的下一个可用链接（循环使用）
