@@ -5,6 +5,7 @@ export class LinkService {
   private static instance: LinkService;
   private complexLinks: Map<string, string> = new Map(); // 链接映射: shortCode -> fullLink
   private projectLinks: Map<string, string[]> = new Map(); // 项目映射: projectId -> [shortCode1, shortCode2, ...]
+  private linkToProjectMap: Map<string, string> = new Map(); // 反向映射: shortCode -> projectId
   private linkUsage: Map<string, number> = new Map(); // 链接使用计数
   private linkActive: Map<string, boolean> = new Map(); // 链接活跃状态: shortCode -> isActive
   private projectCurrentIndex: Map<string, number> = new Map(); // 每个项目的当前索引
@@ -45,6 +46,7 @@ export class LinkService {
     // 从localStorage加载保存的链接数据
     const savedLinks = localStorage.getItem('complexLinks');
     const savedProjectLinks = localStorage.getItem('projectLinks');
+    const savedLinkToProjectMap = localStorage.getItem('linkToProjectMap');
     const savedLinkUsage = localStorage.getItem('linkUsage');
     const savedLinkActive = localStorage.getItem('linkActive');
     const savedProjectCurrentIndex = localStorage.getItem('projectCurrentIndex');
@@ -64,6 +66,15 @@ export class LinkService {
         this.projectLinks = new Map(Object.entries(parsed));
       } catch (error) {
         console.error('Error loading project links:', error);
+      }
+    }
+
+    if (savedLinkToProjectMap) {
+      try {
+        const parsed = JSON.parse(savedLinkToProjectMap);
+        this.linkToProjectMap = new Map(Object.entries(parsed));
+      } catch (error) {
+        console.error('Error loading link to project map:', error);
       }
     }
 
@@ -104,6 +115,7 @@ export class LinkService {
     try {
       localStorage.setItem('complexLinks', JSON.stringify(Object.fromEntries(this.complexLinks)));
       localStorage.setItem('projectLinks', JSON.stringify(Object.fromEntries(this.projectLinks)));
+      localStorage.setItem('linkToProjectMap', JSON.stringify(Object.fromEntries(this.linkToProjectMap)));
       localStorage.setItem('linkUsage', JSON.stringify(Object.fromEntries(this.linkUsage)));
       localStorage.setItem('linkActive', JSON.stringify(Object.fromEntries(this.linkActive)));
       localStorage.setItem('projectCurrentIndex', JSON.stringify(Object.fromEntries(this.projectCurrentIndex)));
@@ -122,15 +134,23 @@ export class LinkService {
     return result;
   }
 
-  // 为项目生成20个复杂长链接
+  // 为项目生成固定的链接
   generateLinksForProject(projectId: string): string[] {
+    // 检查是否已经为该项目生成过链接
+    const existingShortCodes = this.projectLinks.get(projectId);
+    if (existingShortCodes && existingShortCodes.length > 0) {
+      console.log(`项目 ${projectId} 已存在链接，返回现有链接`);
+      return existingShortCodes.map(code => this.complexLinks.get(code) || '').filter(Boolean);
+    }
+
     const links: string[] = [];
     const shortCodes: string[] = [];
 
     for (let i = 0; i < this.maxLinksPerProject; i++) {
-      const shortCode = this.generateComplexString(12); // 更长的 shortCode
+      // 生成固定的shortCode，基于项目ID和索引，确保唯一性和稳定性
+      const shortCode = this.generateFixedShortCode(projectId, i);
       const complexPart = this.generateComplexString(96); // 更复杂的随机部分
-      const projectKey = this.generateComplexString(32); // 项目特定的密钥
+      const projectKey = this.generateProjectKey(projectId); // 基于项目ID生成固定的密钥
       const sequenceId = i.toString().padStart(3, '0'); // 序列ID，确保顺序
       
       // 智能获取基础URL，适配不同部署环境
@@ -142,6 +162,7 @@ export class LinkService {
       params.set('proj', projectKey);
       params.set('data', complexPart);
       params.set('pid', projectId); // 添加项目ID，便于调试
+      params.set('v', '1.0'); // 添加版本号，便于后续升级
       
       // 对于HashRouter，需要包含#/前缀
       // 确保链接格式在不同设备上兼容
@@ -152,12 +173,42 @@ export class LinkService {
       links.push(fullLink);
       this.linkUsage.set(shortCode, 0);
       this.linkActive.set(shortCode, false); // 初始状态为非活跃
+      
+      // 同时保存反向映射，便于通过链接找到项目
+      this.linkToProjectMap.set(shortCode, projectId);
     }
 
     this.projectLinks.set(projectId, shortCodes);
     this.projectCurrentIndex.set(projectId, 0); // 初始化项目的当前索引
     this.saveToStorage();
+    console.log(`为项目 ${projectId} 生成了 ${links.length} 个固定链接`);
     return links;
+  }
+
+  // 基于项目ID和索引生成固定的shortCode
+  private generateFixedShortCode(projectId: string, index: number): string {
+    // 使用项目ID的哈希值加上索引，确保固定性
+    const hash = this.simpleHash(projectId);
+    const indexStr = index.toString().padStart(3, '0');
+    // 生成12位的shortCode
+    return `${hash.substring(0, 8)}${indexStr}`.substring(0, 12);
+  }
+
+  // 基于项目ID生成固定的项目密钥
+  private generateProjectKey(projectId: string): string {
+    return this.simpleHash(`${projectId}_key`).substring(0, 32);
+  }
+
+  // 简单哈希函数，用于生成固定长度的字符串
+  private simpleHash(input: string): string {
+    let hash = 0;
+    for (let i = 0; i < input.length; i++) {
+      const char = input.charCodeAt(i);
+      hash = ((hash << 5) - hash) + char;
+      hash = hash & hash; // 转换为32位整数
+    }
+    // 转换为十六进制字符串，并确保长度
+    return Math.abs(hash).toString(36).padStart(12, '0');
   }
 
   // 智能获取基础URL，适配不同部署环境
@@ -388,15 +439,32 @@ export class LinkService {
     console.log('=== getProjectIdByShortCode Debug ===');
     console.log('查找shortCode:', shortCode);
     console.log('当前projectLinks数量:', this.projectLinks.size);
-    console.log('projectLinks内容:', Object.fromEntries(this.projectLinks));
+    console.log('linkToProjectMap大小:', this.linkToProjectMap.size);
     
+    // 方法1: 使用反向映射快速查找
+    const projectIdFromMap = this.linkToProjectMap.get(shortCode);
+    console.log('方法1 - 从反向映射查找:', projectIdFromMap);
+    if (projectIdFromMap) {
+      console.log('✅ 方法1 - 找到匹配的项目ID:', projectIdFromMap);
+      return projectIdFromMap;
+    }
+    
+    // 方法2: 遍历项目链接查找
+    console.log('方法1失败，尝试遍历项目链接查找...');
     for (const [projectId, shortCodes] of this.projectLinks.entries()) {
       console.log(`检查项目 ${projectId}:`, shortCodes.length, '个shortCode');
       if (shortCodes.includes(shortCode)) {
-        console.log('✅ 找到匹配的项目ID:', projectId);
+        console.log('✅ 方法2 - 找到匹配的项目ID:', projectId);
+        // 更新反向映射，提高下次查找效率
+        this.linkToProjectMap.set(shortCode, projectId);
+        this.saveToStorage();
         return projectId;
       }
     }
+    
+    // 方法3: 检查是否有相似的shortCode
+    console.log('方法2失败，尝试查找相似的shortCode...');
+    // 这里可以添加更复杂的匹配逻辑
     
     console.log('❌ 未找到匹配的项目ID');
     console.log('================================');
