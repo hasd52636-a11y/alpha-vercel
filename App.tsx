@@ -147,12 +147,20 @@ const LinkEntryHandler: React.FC<{ projects: ProductProject[] }> = ({ projects }
               </p>
             </div>
             
-            <button 
-              onClick={() => window.location.href = '/'}
-              className="w-full bg-violet-600 text-white py-3 px-6 rounded-xl font-bold hover:bg-violet-700 transition-colors"
-            >
-              返回首页
-            </button>
+            <div className="space-y-3">
+              <button 
+                onClick={() => window.location.reload()}
+                className="w-full bg-violet-600 text-white py-3 px-6 rounded-xl font-bold hover:bg-violet-700 transition-colors"
+              >
+                重新尝试
+              </button>
+              <button 
+                onClick={() => window.close()}
+                className="w-full bg-slate-600 text-white py-3 px-6 rounded-xl font-bold hover:bg-slate-700 transition-colors"
+              >
+                关闭页面
+              </button>
+            </div>
           </div>
         </div>
       </div>
