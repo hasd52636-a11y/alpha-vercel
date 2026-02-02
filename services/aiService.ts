@@ -140,7 +140,19 @@ export class AIService {
     return ZhipuModel.GLM_4_7;
   }
 
-  private async zhipuFetch(endpoint: string, body: any, isBinary: boolean = false) {
+  // 重试机制配置
+  private retryConfig = {
+    maxRetries: 3,
+    retryDelay: 1000,
+    retryableStatuses: [408, 429, 500, 502, 503, 504]
+  };
+
+  // 延迟函数
+  private delay(ms: number): Promise<void> {
+    return new Promise(resolve => setTimeout(resolve, ms));
+  }
+
+  private async zhipuFetch(endpoint: string, body: any, isBinary: boolean = false, retryCount: number = 0) {
     try {
       // 获取API密钥
       const apiKey = this.getZhipuApiKey();
@@ -158,6 +170,7 @@ export class AIService {
           'Authorization': `Bearer ${apiKey}`,
         },
         body: JSON.stringify(body),
+        timeout: 30000, // 30秒超时
       });
 
       console.log('Response status:', response.status);
@@ -178,18 +191,34 @@ export class AIService {
         } catch (parseError) {
           console.error('Error parsing error response:', parseError);
         }
+
+        // 检查是否需要重试
+        if (this.retryConfig.retryableStatuses.includes(response.status) && retryCount < this.retryConfig.maxRetries) {
+          console.log(`Retrying request (${retryCount + 1}/${this.retryConfig.maxRetries})...`);
+          await this.delay(this.retryConfig.retryDelay * (retryCount + 1));
+          return this.zhipuFetch(endpoint, body, isBinary, retryCount + 1);
+        }
+
         throw new Error(`${errorMessage} (${response.status})`);
       }
 
       return isBinary ? response.arrayBuffer() : response.json();
     } catch (error) {
       console.error('Zhipu API request failed:', error);
+      
+      // 网络错误重试
+      if (error instanceof Error && (error.message.includes('network') || error.message.includes('timeout')) && retryCount < this.retryConfig.maxRetries) {
+        console.log(`Retrying request due to network error (${retryCount + 1}/${this.retryConfig.maxRetries})...`);
+        await this.delay(this.retryConfig.retryDelay * (retryCount + 1));
+        return this.zhipuFetch(endpoint, body, isBinary, retryCount + 1);
+      }
+      
       throw error;
     }
   }
 
   // 智谱流式请求
-  private async zhipuStreamFetch(endpoint: string, body: any, callback: StreamCallback) {
+  private async zhipuStreamFetch(endpoint: string, body: any, callback: StreamCallback, retryCount: number = 0) {
     try {
       // 获取API密钥
       const apiKey = this.getZhipuApiKey();
@@ -207,6 +236,7 @@ export class AIService {
           'Authorization': `Bearer ${apiKey}`,
         },
         body: JSON.stringify(body),
+        timeout: 60000, // 60秒超时
       });
 
       console.log('Stream response status:', response.status);
@@ -226,6 +256,14 @@ export class AIService {
         } catch (parseError) {
           console.error('Error parsing stream error response:', parseError);
         }
+
+        // 检查是否需要重试
+        if (this.retryConfig.retryableStatuses.includes(response.status) && retryCount < this.retryConfig.maxRetries) {
+          console.log(`Retrying stream request (${retryCount + 1}/${this.retryConfig.maxRetries})...`);
+          await this.delay(this.retryConfig.retryDelay * (retryCount + 1));
+          return this.zhipuStreamFetch(endpoint, body, callback, retryCount + 1);
+        }
+
         throw new Error(`${errorMessage} (${response.status})`);
       }
 
@@ -238,38 +276,53 @@ export class AIService {
       let done = false;
 
       while (!done) {
-        const { value, done: readerDone } = await reader.read();
-        done = readerDone;
-        
-        if (value) {
-          const chunk = decoder.decode(value, { stream: !done });
-          const lines = chunk.split('\n');
+        try {
+          const { value, done: readerDone } = await reader.read();
+          done = readerDone;
           
-          for (const line of lines) {
-            if (line.startsWith('data: ')) {
-              const data = line.substring(6);
-              if (data === '[DONE]') {
-                callback('', true, 'stop');
-              } else {
-                try {
-                  const parsed = JSON.parse(data);
-                  const content = parsed.choices[0]?.delta?.content || '';
-                  if (content) {
-                    callback(content, false);
+          if (value) {
+            const chunk = decoder.decode(value, { stream: !done });
+            const lines = chunk.split('\n');
+            
+            for (const line of lines) {
+              if (line.startsWith('data: ')) {
+                const data = line.substring(6);
+                if (data === '[DONE]') {
+                  callback('', true, 'stop');
+                } else {
+                  try {
+                    const parsed = JSON.parse(data);
+                    const content = parsed.choices[0]?.delta?.content || '';
+                    if (content) {
+                      callback(content, false);
+                    }
+                    if (parsed.choices[0]?.finish_reason) {
+                      callback('', true, parsed.choices[0].finish_reason);
+                    }
+                  } catch (error) {
+                    console.error('Error parsing SSE chunk:', error);
                   }
-                  if (parsed.choices[0]?.finish_reason) {
-                    callback('', true, parsed.choices[0].finish_reason);
-                  }
-                } catch (error) {
-                  console.error('Error parsing SSE chunk:', error);
                 }
               }
             }
           }
+        } catch (streamError) {
+          console.error('Stream reading error:', streamError);
+          // 流式读取错误，不重试，直接通知回调
+          callback('', true, 'error');
+          throw streamError;
         }
       }
     } catch (error) {
       console.error('Zhipu API stream request failed:', error);
+      
+      // 网络错误重试
+      if (error instanceof Error && (error.message.includes('network') || error.message.includes('timeout')) && retryCount < this.retryConfig.maxRetries) {
+        console.log(`Retrying stream request due to network error (${retryCount + 1}/${this.retryConfig.maxRetries})...`);
+        await this.delay(this.retryConfig.retryDelay * (retryCount + 1));
+        return this.zhipuStreamFetch(endpoint, body, callback, retryCount + 1);
+      }
+      
       throw error;
     }
   }
@@ -1291,23 +1344,59 @@ export class AIService {
       return this.zhipuApiKey;
     }
     
-    // 从环境变量获取（Vite暴露的环境变量）
+    // 从Vite环境变量获取（扫码页面优先使用）
+    try {
+      if (typeof window !== 'undefined' && (window as any).import?.meta?.env?.VITE_ZHIPU_API_KEY) {
+        this.zhipuApiKey = (window as any).import.meta.env.VITE_ZHIPU_API_KEY;
+        return this.zhipuApiKey;
+      }
+    } catch (e) {
+      console.error('Error accessing import.meta.env:', e);
+    }
+    
+    // 尝试直接访问环境变量
+    try {
+      if ((globalThis as any).VITE_ZHIPU_API_KEY) {
+        this.zhipuApiKey = (globalThis as any).VITE_ZHIPU_API_KEY;
+        return this.zhipuApiKey;
+      }
+    } catch (e) {
+      console.error('Error accessing globalThis:', e);
+    }
+    
+    // 从Node.js环境变量获取
     if (typeof process !== 'undefined' && process.env?.ZHIPU_API_KEY) {
       this.zhipuApiKey = process.env.ZHIPU_API_KEY;
       return this.zhipuApiKey;
     }
     
     // 从localStorage获取（用户手动设置）
-    const savedKey = localStorage.getItem('zhipuApiKey');
-    if (savedKey) {
-      this.zhipuApiKey = savedKey;
-      return savedKey;
+    if (typeof localStorage !== 'undefined') {
+      const savedKey = localStorage.getItem('zhipuApiKey');
+      if (savedKey) {
+        this.zhipuApiKey = savedKey;
+        return savedKey;
+      }
     }
     
     // 从window全局变量获取（备用方案）
     if (typeof window !== 'undefined' && (window as any).ZHIPU_API_KEY) {
       this.zhipuApiKey = (window as any).ZHIPU_API_KEY;
       return this.zhipuApiKey;
+    }
+    
+    // 从URL参数获取（扫码页面应急方案）
+    if (typeof window !== 'undefined' && window.location) {
+      const urlParams = new URLSearchParams(window.location.search);
+      const apiKeyParam = urlParams.get('api_key');
+      if (apiKeyParam) {
+        this.zhipuApiKey = apiKeyParam;
+        // 保存到localStorage，避免重复获取
+        if (typeof localStorage !== 'undefined') {
+          localStorage.setItem('zhipuApiKey', apiKeyParam);
+        }
+        return apiKeyParam;
+      }
     }
     
     return '';

@@ -62,10 +62,18 @@ const LinkEntryHandler: React.FC<{ projects: ProductProject[] }> = ({ projects }
         setLoading(true);
         setError('');
         
+        // 等待服务初始化完成
+        console.log('等待服务初始化...');
+        await new Promise(resolve => setTimeout(resolve, 500));
+        
+        // 强制初始化项目服务
+        console.log('强制初始化项目服务...');
+        const allProjects = await projectService.getAllProjects();
+        console.log('项目服务初始化完成，项目数量:', allProjects.length);
+        
         // 检查linkService的状态
         console.log('linkService状态检查:');
         console.log('开始查找shortCode对应的项目ID');
-        // 注意：complexLinks和projectLinks是私有属性，无法直接访问
         
         // 根据shortCode获取对应的项目ID
         console.log('查找shortCode对应的项目ID...');

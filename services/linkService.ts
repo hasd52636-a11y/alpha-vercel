@@ -14,6 +14,7 @@ export class LinkService {
 
   private constructor() {
     this.initialize();
+    this.initializeStateManagement();
   }
 
   public static getInstance(): LinkService {
@@ -134,8 +135,17 @@ export class LinkService {
       
       // 智能获取基础URL，适配不同部署环境
       const baseUrl = this.getBaseUrl();
+      
+      // 构建链接参数
+      const params = new URLSearchParams();
+      params.set('seq', sequenceId);
+      params.set('proj', projectKey);
+      params.set('data', complexPart);
+      params.set('pid', projectId); // 添加项目ID，便于调试
+      
       // 对于HashRouter，需要包含#/前缀
-      const fullLink = `${baseUrl}/#/entry/${shortCode}?seq=${sequenceId}&proj=${projectKey}&data=${complexPart}`;
+      // 确保链接格式在不同设备上兼容
+      const fullLink = `${baseUrl}/#/entry/${shortCode}?${params.toString()}`;
       
       this.complexLinks.set(shortCode, fullLink);
       shortCodes.push(shortCode);
@@ -157,10 +167,28 @@ export class LinkService {
       return this.customBaseUrl;
     }
     
-    // 优先使用环境变量中的基础URL（生产环境）
-    // 在 Vite 中，环境变量通过 import.meta.env 访问
-    if (import.meta.env.REACT_APP_BASE_URL) {
-      return import.meta.env.REACT_APP_BASE_URL;
+    // 优先使用Vite环境变量中的基础URL
+    try {
+      if (typeof window !== 'undefined' && (window as any).import?.meta?.env) {
+        const env = (window as any).import.meta.env;
+        if (env.VITE_APP_BASE_URL) {
+          return env.VITE_APP_BASE_URL;
+        }
+        if (env.REACT_APP_BASE_URL) {
+          return env.REACT_APP_BASE_URL;
+        }
+      }
+    } catch (e) {
+      console.error('Error accessing import.meta.env:', e);
+    }
+    
+    // 尝试直接访问环境变量
+    try {
+      if ((globalThis as any).VITE_APP_BASE_URL) {
+        return (globalThis as any).VITE_APP_BASE_URL;
+      }
+    } catch (e) {
+      console.error('Error accessing globalThis:', e);
     }
     
     // 检查是否在浏览器环境中
@@ -180,8 +208,118 @@ export class LinkService {
       return baseUrl;
     }
     
-    // 后备方案（服务端渲染或其他环境）
-    return 'http://localhost:3003';
+    // 从Node.js环境变量获取
+    if (typeof process !== 'undefined' && process.env) {
+      if (process.env.BASE_URL) {
+        return process.env.BASE_URL;
+      }
+      if (process.env.VERCEL_URL) {
+        return `https://${process.env.VERCEL_URL}`;
+      }
+    }
+    
+    // 硬编码生产域名作为备用方案
+    return 'https://sora.wboke.com';
+  }
+
+  // 链接状态管理配置
+  private linkStateConfig = {
+    maxActiveLinks: 15, // 增加最大活跃链接数
+    linkTimeout: 3600000, // 链接活跃状态超时时间（1小时）
+    cleanupInterval: 600000 // 状态清理间隔（10分钟）
+  };
+
+  // 链接状态记录
+  private linkStates: Map<string, { active: boolean; lastUsed: number }> = new Map();
+
+  // 初始化状态管理
+  private initializeStateManagement() {
+    // 从存储加载链接状态
+    this.loadLinkStates();
+    
+    // 设置定期清理任务
+    setInterval(() => {
+      this.cleanupExpiredLinks();
+    }, this.linkStateConfig.cleanupInterval);
+  }
+
+  // 加载链接状态
+  private loadLinkStates() {
+    try {
+      const savedStates = localStorage.getItem('linkStates');
+      if (savedStates) {
+        const parsed = JSON.parse(savedStates);
+        this.linkStates = new Map(Object.entries(parsed).map(([key, value]) => [key, value as { active: boolean; lastUsed: number }]));
+      }
+    } catch (error) {
+      console.error('Error loading link states:', error);
+    }
+  }
+
+  // 保存链接状态
+  private saveLinkStates() {
+    try {
+      localStorage.setItem('linkStates', JSON.stringify(Object.fromEntries(this.linkStates)));
+    } catch (error) {
+      console.error('Error saving link states:', error);
+    }
+  }
+
+  // 获取链接活跃状态
+  private isLinkActive(shortCode: string): boolean {
+    const state = this.linkStates.get(shortCode);
+    if (!state) {
+      return false;
+    }
+    
+    // 检查是否超时
+    const now = Date.now();
+    if (now - state.lastUsed > this.linkStateConfig.linkTimeout) {
+      this.linkStates.set(shortCode, { active: false, lastUsed: now });
+      this.saveLinkStates();
+      return false;
+    }
+    
+    return state.active;
+  }
+
+  // 设置链接活跃状态
+  private setLinkActive(shortCode: string, active: boolean) {
+    const now = Date.now();
+    this.linkStates.set(shortCode, { active, lastUsed: now });
+    this.saveLinkStates();
+  }
+
+  // 清理过期链接状态
+  private cleanupExpiredLinks() {
+    const now = Date.now();
+    const expiredShortCodes: string[] = [];
+    
+    for (const [shortCode, state] of this.linkStates.entries()) {
+      if (now - state.lastUsed > this.linkStateConfig.linkTimeout) {
+        expiredShortCodes.push(shortCode);
+      }
+    }
+    
+    for (const shortCode of expiredShortCodes) {
+      this.linkStates.set(shortCode, { active: false, lastUsed: now });
+    }
+    
+    if (expiredShortCodes.length > 0) {
+      this.saveLinkStates();
+      console.log(`清理了 ${expiredShortCodes.length} 个过期链接状态`);
+    }
+  }
+
+  // 获取当前活跃链接数量
+  private getActiveLinksCount(): number {
+    let count = 0;
+    for (const state of this.linkStates.values()) {
+      if (this.isLinkActive(state as any)) {
+        count++;
+      }
+    }
+    return count;
   }
 
   // 获取项目的下一个可用链接（循环使用）
@@ -199,16 +337,16 @@ export class LinkService {
     let attempts = 0;
     let selectedShortCode = '';
 
-    // 寻找下一个可用链接，最多尝试20次
+    // 寻找下一个可用链接，最多尝试所有链接
     while (attempts < shortCodes.length) {
       const shortCode = shortCodes[currentIndex];
-      const isActive = this.linkActive.get(shortCode) || false;
+      const isActive = this.isLinkActive(shortCode);
       
       // 检查是否可以使用此链接
-      if (!isActive || this.getActiveLinksCount() < this.maxActiveLinks) {
+      if (!isActive || this.getActiveLinksCount() < this.linkStateConfig.maxActiveLinks) {
         selectedShortCode = shortCode;
         // 标记链接为活跃状态
-        this.linkActive.set(shortCode, true);
+        this.setLinkActive(shortCode, true);
         break;
       }
       
@@ -217,10 +355,11 @@ export class LinkService {
       attempts++;
     }
 
-    // 如果没有找到可用链接（理论上不应该发生），使用第一个链接
+    // 如果没有找到可用链接，强制使用一个链接
     if (!selectedShortCode && shortCodes.length > 0) {
-      selectedShortCode = shortCodes[0];
-      this.linkActive.set(selectedShortCode, true);
+      selectedShortCode = shortCodes[Math.floor(Math.random() * shortCodes.length)];
+      this.setLinkActive(selectedShortCode, true);
+      console.log('强制使用链接:', selectedShortCode);
     }
 
     // 更新项目当前索引
@@ -234,6 +373,7 @@ export class LinkService {
     }
 
     const fullLink = this.complexLinks.get(selectedShortCode) || '';
+    console.log('Selected link:', fullLink);
     return fullLink;
   }
 
@@ -245,24 +385,22 @@ export class LinkService {
 
   // 根据shortCode获取对应的项目ID
   getProjectIdByShortCode(shortCode: string): string | null {
+    console.log('=== getProjectIdByShortCode Debug ===');
+    console.log('查找shortCode:', shortCode);
+    console.log('当前projectLinks数量:', this.projectLinks.size);
+    console.log('projectLinks内容:', Object.fromEntries(this.projectLinks));
+    
     for (const [projectId, shortCodes] of this.projectLinks.entries()) {
+      console.log(`检查项目 ${projectId}:`, shortCodes.length, '个shortCode');
       if (shortCodes.includes(shortCode)) {
+        console.log('✅ 找到匹配的项目ID:', projectId);
         return projectId;
       }
     }
     
+    console.log('❌ 未找到匹配的项目ID');
+    console.log('================================');
     return null;
-  }
-
-  // 计算当前活跃的链接数量
-  getActiveLinksCount(): number {
-    let count = 0;
-    for (const isActive of this.linkActive.values()) {
-      if (isActive) {
-        count++;
-      }
-    }
-    return count;
   }
 
   // 重置所有链接的使用计数
@@ -292,42 +430,7 @@ export class LinkService {
 
   // 标记链接为非活跃状态
   deactivateLink(shortCode: string): void {
-    this.linkActive.set(shortCode, false);
-    this.saveToStorage();
-  }
-
-  // 清理过期链接
-  cleanupExpiredLinks() {
-    const now = Date.now();
-    const expiredShortCodes: string[] = [];
-
-    for (const [shortCode, link] of this.complexLinks.entries()) {
-      // 检查链接是否包含过期时间戳
-      const match = link.match(/&t=(\d+)/);
-      if (match) {
-        const timestamp = parseInt(match[1]);
-        // 如果链接超过30天未使用，标记为过期
-        if (now - timestamp > 30 * 24 * 60 * 60 * 1000) {
-          expiredShortCodes.push(shortCode);
-        }
-      }
-    }
-
-    // 删除过期链接
-    for (const shortCode of expiredShortCodes) {
-      this.complexLinks.delete(shortCode);
-      this.linkUsage.delete(shortCode);
-      this.linkActive.delete(shortCode);
-      
-      // 从项目链接中移除
-      for (const [projectId, shortCodes] of this.projectLinks.entries()) {
-        const updatedShortCodes = shortCodes.filter(code => code !== shortCode);
-        if (updatedShortCodes.length !== shortCodes.length) {
-          this.projectLinks.set(projectId, updatedShortCodes);
-        }
-      }
-    }
-
+    this.setLinkActive(shortCode, false);
     this.saveToStorage();
   }
 
