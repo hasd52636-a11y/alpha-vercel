@@ -6,22 +6,14 @@ const ZHIPU_BASE_URL = '/api/zhipu'
 
 // 智谱模型类型 - 基于官方API文档，保持简洁
 export enum ZhipuModel {
-  // 主力文本模型
-  GLM_4_7 = 'glm-4.7',                    // 最新旗舰模型（默认）
-  GLM_4_6 = 'glm-4.6',                    // 高性价比选择
-  GLM_4_5_FLASH = 'glm-4.5-flash',        // 免费模型
-  
-  // 视觉模型
-  GLM_4_6V = 'glm-4.6v',                  // 主力视觉模型
-  
-  // 音频模型
-  GLM_4_VOICE = 'glm-4-voice',            // 语音模型
-  
-  // 向量模型
-  EMBEDDING_3 = 'embedding-3',            // 向量化模型
-  
-  // 实时模型
-  GLM_REALTIME = 'glm-realtime-flash',    // 实时交互
+  GLM_4_7 = 'glm-4.7',                  // 最新旗舰模型（默认）
+  GLM_4_6 = 'glm-4.6',                  // 高性价比选择
+  GLM_4_5_FLASH = 'glm-4.5-flash',      // 免费模型
+  GLM_4V = 'glm-4v',                    // 视觉分析模型
+  GLM_4_PLUS = 'glm-4-plus',             // 增强版模型
+  GLM_4_VOICE = 'glm-4-voice',          // 语音模型
+  GLM_REALTIME = 'glm-realtime-flash',   // 实时交互专用
+  EMBEDDING_3 = 'embedding-3',           // 向量模型
 }
 
 // 智能路由配置 - 根据任务类型自动选择最优模型
@@ -40,7 +32,7 @@ export interface SmartRoutingConfig {
 export const DEFAULT_SMART_ROUTING: SmartRoutingConfig = {
   textChat: ZhipuModel.GLM_4_7,              // 最新旗舰模型，最佳对话体验
   codeGeneration: ZhipuModel.GLM_4_7,        // Agentic Coding 专用优化
-  imageAnalysis: ZhipuModel.GLM_4_6V,        // 最强视觉理解能力
+  imageAnalysis: ZhipuModel.GLM_4V,          // 最强视觉理解能力
   voiceInteraction: ZhipuModel.GLM_4_VOICE,  // 专业语音模型
   embedding: ZhipuModel.EMBEDDING_3,         // 最新向量模型
   realtime: ZhipuModel.GLM_REALTIME,         // 实时交互专用
@@ -52,12 +44,12 @@ export const DEFAULT_SMART_ROUTING: SmartRoutingConfig = {
 export const COST_OPTIMIZED_ROUTING: SmartRoutingConfig = {
   textChat: ZhipuModel.GLM_4_5_FLASH,        // 免费高效
   codeGeneration: ZhipuModel.GLM_4_6,        // 高性价比编码
-  imageAnalysis: ZhipuModel.GLM_4_6V,  // 视觉分析
-  voiceInteraction: ZhipuModel.GLM_4_VOICE,  // 语音专用
+  imageAnalysis: ZhipuModel.GLM_4V,           // 视觉分析
+  voiceInteraction: ZhipuModel.GLM_4_VOICE,   // 语音专用
   embedding: ZhipuModel.EMBEDDING_3,         // 向量化
-  realtime: ZhipuModel.GLM_REALTIME,     // 实时交互
-  rolePlay: ZhipuModel.GLM_4_5_FLASH,       // 通用模型
-  thinking: ZhipuModel.GLM_4_6,             // 思考能力
+  realtime: ZhipuModel.GLM_REALTIME,         // 实时交互
+  rolePlay: ZhipuModel.GLM_4_5_FLASH,        // 通用模型
+  thinking: ZhipuModel.GLM_4_6,               // 思考能力
 };
 
 // 任务类型检测
@@ -128,7 +120,7 @@ export class AIService {
     // 图片分析 -> 视觉模型
     if (options?.imageUrl || options?.imageBuffer || 
         lowerPrompt.includes('图片') || lowerPrompt.includes('image')) {
-      return ZhipuModel.GLM_4_6V;
+      return ZhipuModel.GLM_4V;
     }
     
     // 语音相关 -> 语音模型
@@ -734,9 +726,9 @@ export class AIService {
     }
 
     try {
-      // 仅使用智谱AI实现
+      // 使用 glm-4v 或 glm-4-plus 视觉模型
       const data = await this.zhipuFetch('/chat/completions', {
-        model: 'glm-4.6v',
+        model: 'glm-4v',  // 智谱视觉模型
         messages: [{
           role: 'user',
           content: [
@@ -747,8 +739,25 @@ export class AIService {
       });
       return data.choices[0].message.content;
     } catch (error) {
-      console.error('Image analysis failed, using mock response:', error);
-      return this.generateMockImageAnalysis(visionPrompt);
+      console.error('Image analysis failed, trying alternative model:', error);
+      
+      // 如果 glm-4v 失败，尝试使用 glm-4-plus
+      try {
+        const data = await this.zhipuFetch('/chat/completions', {
+          model: 'glm-4-plus',
+          messages: [{
+            role: 'user',
+            content: [
+              { type: 'text', text: visionPrompt },
+              { type: 'image_url', image_url: { url: imageBuffer } }
+            ]
+          }]
+        });
+        return data.choices[0].message.content;
+      } catch (error2) {
+        console.error('Alternative model also failed:', error2);
+        return this.generateMockImageAnalysis(visionPrompt);
+      }
     }
   }
 
