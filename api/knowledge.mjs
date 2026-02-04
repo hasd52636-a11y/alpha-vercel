@@ -4,37 +4,6 @@ export const runtimeConfig = {
   runtime: 'edge',
 };
 
-/**
- * @typedef {Object} VectorDocument
- * @property {string} id
- * @property {string} content
- * @property {number[]=} embedding
- * @property {Object} metadata
- * @property {string} metadata.projectId
- * @property {string} metadata.title
- * @property {string} metadata.type
- * @property {string} metadata.createdAt
- * @property {string[]=} metadata.tags
- */
-
-/**
- * @typedef {Object} VectorSearchResult
- * @property {string} id
- * @property {number} score
- * @property {string} content
- * @property {Object} metadata
- */
-
-/** @type {string|null} */
-let supabaseUrl = null;
-/** @type {string|null} */
-let supabaseKey = null;
-
-/**
- * @param {string} text
- * @param {string} apiKey
- * @returns {Promise<number[]>}
- */
 async function createEmbedding(text, apiKey) {
   try {
     const response = await fetch('https://open.bigmodel.cn/api/paas/v4/embeddings', {
@@ -62,21 +31,12 @@ async function createEmbedding(text, apiKey) {
   }
 }
 
-/**
- * @param {number[]} vec
- * @returns {number[]}
- */
 function normalizeVector(vec) {
   const magnitude = Math.sqrt(vec.reduce((sum, a) => sum + a * a, 0));
   if (magnitude === 0) return vec;
   return vec.map(a => a / magnitude);
 }
 
-/**
- * @param {number[]} vec1
- * @param {number[]} vec2
- * @returns {number}
- */
 function cosineSimilarity(vec1, vec2) {
   if (vec1.length !== vec2.length || vec1.length === 0) return 0;
   
@@ -88,10 +48,6 @@ function cosineSimilarity(vec1, vec2) {
   return dotProduct / (magnitude1 * magnitude2);
 }
 
-/**
- * @param {Request} req
- * @returns {Promise<Response>}
- */
 export default async function handler(req) {
   if (req.method !== 'POST') {
     return new Response(JSON.stringify({ error: 'Method not allowed' }), {
@@ -110,8 +66,8 @@ export default async function handler(req) {
       });
     }
 
-    supabaseUrl = process.env.SUPABASE_URL;
-    supabaseKey = process.env.SUPABASE_KEY;
+    const supabaseUrl = process.env.SUPABASE_URL;
+    const supabaseKey = process.env.SUPABASE_KEY;
 
     if (!supabaseUrl || !supabaseKey) {
       return new Response(JSON.stringify({ 
@@ -127,56 +83,56 @@ export default async function handler(req) {
     const supabase = createClient(supabaseUrl, supabaseKey);
     const targetProjectId = projectId || 'global';
 
-    switch (action) {
-      case 'upsert': {
-        if (!document) {
-          return new Response(JSON.stringify({ error: 'Document required' }), {
-            status: 400,
-            headers: { 'Content-Type': 'application/json' },
-          });
-        }
-
-        const embedding = await createEmbedding(document.content, apiKey);
-        
-        const { error } = await supabase.from('knowledge_vectors').upsert({
-          id: document.id || `doc_${Date.now()}`,
-          content: document.content,
-          embedding: embedding,
-          metadata: {
-            projectId: targetProjectId,
-            title: document.title || 'Untitled',
-            type: document.type || 'text',
-            createdAt: new Date().toISOString(),
-            tags: document.tags || [],
-          },
-          project_id: targetProjectId,
-        }, {
-          onConflict: 'id'
-        });
-
-        if (error) {
-          throw new Error(`Supabase upsert error: ${error.message}`);
-        }
-
-        return new Response(JSON.stringify({ 
-          success: true, 
-          id: document.id || `doc_${Date.now()}`,
-          message: 'Document vectorized and stored' 
-        }), {
+    if (action === 'upsert') {
+      if (!document) {
+        return new Response(JSON.stringify({ error: 'Document required' }), {
+          status: 400,
           headers: { 'Content-Type': 'application/json' },
         });
       }
 
-      case 'search': {
-        if (!query) {
-          return new Response(JSON.stringify({ error: 'Query required' }), {
-            status: 400,
-            headers: { 'Content-Type': 'application/json' },
-          });
-        }
+      const embedding = await createEmbedding(document.content, apiKey);
+      
+      const { error } = await supabase.from('knowledge_vectors').upsert({
+        id: document.id || `doc_${Date.now()}`,
+        content: document.content,
+        embedding: embedding,
+        metadata: {
+          projectId: targetProjectId,
+          title: document.title || 'Untitled',
+          type: document.type || 'text',
+          createdAt: new Date().toISOString(),
+          tags: document.tags || [],
+        },
+        project_id: targetProjectId,
+      }, {
+        onConflict: 'id'
+      });
 
-        const queryEmbedding = await createEmbedding(query, apiKey);
-        
+      if (error) {
+        throw new Error(`Supabase upsert error: ${error.message}`);
+      }
+
+      return new Response(JSON.stringify({ 
+        success: true, 
+        id: document.id || `doc_${Date.now()}`,
+        message: 'Document vectorized and stored' 
+      }), {
+        headers: { 'Content-Type': 'application/json' },
+      });
+    }
+
+    if (action === 'search') {
+      if (!query) {
+        return new Response(JSON.stringify({ error: 'Query required' }), {
+          status: 400,
+          headers: { 'Content-Type': 'application/json' },
+        });
+      }
+
+      const queryEmbedding = await createEmbedding(query, apiKey);
+      
+      try {
         const { data, error } = await supabase.rpc('match_knowledge', {
           query_embedding: queryEmbedding,
           match_threshold: 0.1,
@@ -184,38 +140,7 @@ export default async function handler(req) {
           filter_project_id: targetProjectId
         });
 
-        if (error) {
-          console.error('Supabase RPC error:', error);
-          
-          const { data: allDocs, error: fetchError } = await supabase
-            .from('knowledge_vectors')
-            .select('*')
-            .eq('project_id', targetProjectId);
-
-          if (fetchError) {
-            throw new Error(`Supabase fetch error: ${fetchError.message}`);
-          }
-
-          const results = (allDocs || [])
-            .filter(doc => doc.embedding)
-            .map(doc => ({
-              id: doc.id,
-              score: cosineSimilarity(queryEmbedding, doc.embedding),
-              content: doc.content,
-              metadata: doc.metadata,
-            }))
-            .filter(result => result.score > 0.1)
-            .sort((a, b) => b.score - a.score)
-            .slice(0, 10);
-
-          return new Response(JSON.stringify({ 
-            success: true, 
-            results,
-            message: `Found ${results.length} documents (fallback mode)`
-          }), {
-            headers: { 'Content-Type': 'application/json' },
-          });
-        }
+        if (error) throw error;
 
         const results = (data || []).map(row => ({
           id: row.id,
@@ -231,70 +156,100 @@ export default async function handler(req) {
         }), {
           headers: { 'Content-Type': 'application/json' },
         });
-      }
-
-      case 'delete': {
-        const { id } = await req.json();
-        if (!id) {
-          return new Response(JSON.stringify({ error: 'Document ID required' }), {
-            status: 400,
-            headers: { 'Content-Type': 'application/json' },
-          });
-        }
-
-        const { error } = await supabase
+      } catch (rpcError) {
+        console.error('RPC error, using fallback:', rpcError);
+        
+        const { data: allDocs, error: fetchError } = await supabase
           .from('knowledge_vectors')
-          .delete()
-          .eq('id', id)
+          .select('*')
           .eq('project_id', targetProjectId);
 
-        if (error) {
-          throw new Error(`Supabase delete error: ${error.message}`);
+        if (fetchError) {
+          throw new Error(`Supabase fetch error: ${fetchError.message}`);
         }
+
+        const results = (allDocs || [])
+          .filter(doc => doc.embedding)
+          .map(doc => ({
+            id: doc.id,
+            score: cosineSimilarity(queryEmbedding, doc.embedding),
+            content: doc.content,
+            metadata: doc.metadata,
+          }))
+          .filter(result => result.score > 0.1)
+          .sort((a, b) => b.score - a.score)
+          .slice(0, 10);
 
         return new Response(JSON.stringify({ 
           success: true, 
-          message: 'Document deleted' 
+          results,
+          message: `Found ${results.length} documents (fallback mode)`
         }), {
           headers: { 'Content-Type': 'application/json' },
         });
       }
+    }
 
-      case 'list': {
-        const { data, error } = await supabase
-          .from('knowledge_vectors')
-          .select('id, metadata, created_at, embedding')
-          .eq('project_id', targetProjectId)
-          .order('created_at', { ascending: false });
-
-        if (error) {
-          throw new Error(`Supabase list error: ${error.message}`);
-        }
-
-        const documents = (data || []).map(doc => ({
-          id: doc.id,
-          title: doc.metadata?.title || 'Untitled',
-          type: doc.metadata?.type || 'text',
-          createdAt: doc.metadata?.createdAt || doc.created_at,
-          tags: doc.metadata?.tags || [],
-          hasEmbedding: !!doc.embedding,
-        }));
-
-        return new Response(JSON.stringify({ 
-          success: true, 
-          documents,
-          total: documents.length
-        }), {
-          headers: { 'Content-Type': 'application/json' },
-        });
-      }
-
-      default:
-        return new Response(JSON.stringify({ error: 'Invalid action' }), {
+    if (action === 'delete') {
+      const { id } = await req.json();
+      if (!id) {
+        return new Response(JSON.stringify({ error: 'Document ID required' }), {
           status: 400,
           headers: { 'Content-Type': 'application/json' },
         });
+      }
+
+      const { error } = await supabase
+        .from('knowledge_vectors')
+        .delete()
+        .eq('id', id)
+        .eq('project_id', targetProjectId);
+
+      if (error) {
+        throw new Error(`Supabase delete error: ${error.message}`);
+      }
+
+      return new Response(JSON.stringify({ 
+        success: true, 
+        message: 'Document deleted' 
+      }), {
+        headers: { 'Content-Type': 'application/json' },
+      });
     }
+
+    if (action === 'list') {
+      const { data, error } = await supabase
+        .from('knowledge_vectors')
+        .select('id, metadata, created_at, embedding')
+        .eq('project_id', targetProjectId)
+        .order('created_at', { ascending: false });
+
+      if (error) {
+        throw new Error(`Supabase list error: ${error.message}`);
+      }
+
+      const documents = (data || []).map(doc => ({
+        id: doc.id,
+        title: doc.metadata?.title || 'Untitled',
+        type: doc.metadata?.type || 'text',
+        createdAt: doc.metadata?.createdAt || doc.created_at,
+        tags: doc.metadata?.tags || [],
+        hasEmbedding: !!doc.embedding,
+      }));
+
+      return new Response(JSON.stringify({ 
+        success: true, 
+        documents,
+        total: documents.length
+      }), {
+        headers: { 'Content-Type': 'application/json' },
+      });
+    }
+
+    return new Response(JSON.stringify({ error: 'Invalid action' }), {
+      status: 400,
+      headers: { 'Content-Type': 'application/json' },
+    });
   } catch (error) {
     console.error('Knowledge API error:', error);
     return new Response(JSON.stringify({ 
