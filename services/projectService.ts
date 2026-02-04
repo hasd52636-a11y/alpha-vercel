@@ -225,6 +225,9 @@ class ProjectService {
     project?: ProductProject;
     error?: string;
   }> {
+    // 先从localStorage加载最新数据，确保获取到最新的项目配置
+    this.loadFromLocalStorage();
+    
     return new Promise((resolve) => {
       setTimeout(() => {
         const project = this.projects.get(projectId);

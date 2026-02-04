@@ -150,25 +150,137 @@ const ProjectDetail: React.FC<ProjectDetailProps> = ({ projects, onUpdate }) => 
     onUpdate(updatedProject);
   };
 
-  const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files;
     if (!files) return;
 
-    const newItems: KnowledgeItem[] = (Array.from(files) as File[]).map(f => ({
-      id: `k_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`,
-      title: f.name,
-      content: `[File Context Placeholder] This file "${f.name}" has been uploaded. AI will parse its contents during inference.`,
-      type: f.name.endsWith('.pdf') ? KnowledgeType.PDF : KnowledgeType.TEXT,
-      fileName: f.name,
-      fileSize: `${(f.size / 1024).toFixed(1)} KB`,
-      createdAt: new Date().toISOString()
-    }));
+    const file = files[0];
+    if (!file) return;
 
-    if (localProject) {
-      setLocalProject({
-        ...localProject,
-        knowledgeBase: [...localProject.knowledgeBase, ...newItems]
+    setUploadProgress(0);
+    setUploadStatus('正在读取文件...');
+    setUploadFileName(file.name);
+
+    try {
+      const content = await readFileContent(file);
+      setUploadProgress(30);
+      setUploadStatus('正在解析内容...');
+
+      const fileType = file.name.endsWith('.pdf') ? KnowledgeType.PDF : KnowledgeType.TEXT;
+      
+      setUploadProgress(50);
+      setUploadStatus('正在向量化...');
+
+      const apiKey = localStorage.getItem('zhipuApiKey') || '';
+      const vectorizeResponse = await fetch('/api/knowledge', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: 'upsert',
+          document: {
+            id: `k_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`,
+            title: file.name,
+            content: content,
+            type: fileType,
+            tags: ['uploaded']
+          },
+          projectId: localProject?.id || 'global',
+          apiKey: apiKey
+        })
       });
+
+      const vectorizeResult = await vectorizeResponse.json();
+      
+      if (!vectorizeResult.success) {
+        throw new Error(vectorizeResult.error || '向量化失败');
+      }
+
+      setUploadProgress(100);
+      setUploadStatus('上传完成');
+
+      const newItem: KnowledgeItem = {
+        id: vectorizeResult.id,
+        title: file.name,
+        content: content,
+        type: fileType,
+        fileName: file.name,
+        fileSize: `${(file.size / 1024).toFixed(1)} KB`,
+        createdAt: new Date().toISOString(),
+        embedding: []
+      };
+
+      if (localProject) {
+        setLocalProject({
+          ...localProject,
+          knowledgeBase: [...localProject.knowledgeBase, newItem]
+        });
+      }
+
+      setTimeout(() => {
+        setUploadProgress(null);
+        setUploadStatus('');
+        setUploadFileName('');
+      }, 2000);
+    } catch (error) {
+      console.error('文件上传失败:', error);
+      setUploadStatus('上传失败');
+      setTimeout(() => {
+        setUploadProgress(null);
+        setUploadStatus('');
+        setUploadFileName('');
+      }, 2000);
+    }
+  };
+
+  async function readFileContent(file: File): Promise<string> {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        resolve(e.target?.result as string || '');
+      };
+      reader.onerror = reject;
+      if (file.name.endsWith('.pdf')) {
+        reader.readAsArrayBuffer(file);
+      } else {
+        reader.readAsText(file);
+      }
+    });
+  };
+
+  const handleRevectorize = async (item: KnowledgeItem) => {
+    if (!localProject) return;
+
+    try {
+      setUploadStatus(`正在重新向量化: ${item.title}`);
+      
+      const apiKey = localStorage.getItem('zhipuApiKey') || '';
+      const response = await fetch('/api/knowledge', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: 'upsert',
+          document: item,
+          projectId: localProject.id,
+          apiKey: apiKey
+        })
+      });
+
+      const result = await response.json();
+      
+      if (result.success) {
+        setUploadStatus(`已重新向量化: ${item.title}`);
+        setTimeout(() => {
+          setUploadStatus('');
+        }, 2000);
+      } else {
+        throw new Error(result.error || '向量化失败');
+      }
+    } catch (error) {
+      console.error('重新向量化失败:', error);
+      setUploadStatus('向量化失败');
+      setTimeout(() => {
+        setUploadStatus('');
+      }, 2000);
     }
   };
 
@@ -420,6 +532,13 @@ const ProjectDetail: React.FC<ProjectDetailProps> = ({ projects, onUpdate }) => 
                         />
                         <p className="text-[10px] text-slate-500 font-bold uppercase tracking-widest mt-1">{item.type} • {item.fileSize || 'Manual'}</p>
                       </div>
+                      <button 
+                        onClick={() => handleRevectorize(item)}
+                        className="p-2 text-slate-500 hover:text-violet-500 transition-colors"
+                        title="重新向量化"
+                      >
+                        <Sparkles size={18} />
+                      </button>
                       <button onClick={() => setLocalProject({...localProject, knowledgeBase: localProject.knowledgeBase.filter(i => i.id !== item.id)})} className="p-2 text-slate-500 hover:text-pink-500 transition-colors">
                         <Trash2 size={18} />
                       </button>
@@ -759,35 +878,108 @@ const ProjectDetail: React.FC<ProjectDetailProps> = ({ projects, onUpdate }) => 
 
               {/* 预览窗口 */}
               {customizationPreview && (
-                <div className="glass-card p-8 rounded-[3rem] border border-slate-200">
+                <div className="glass-card p-6 rounded-[3rem] border border-slate-200">
                   <h4 className="text-lg font-bold text-slate-800 mb-6 text-center">用户对话界面预览</h4>
                   <div className="flex justify-center">
-                    <div className="w-full max-w-sm mx-auto bg-white rounded-2xl shadow-xl overflow-hidden">
-                      <div className="bg-black/10 backdrop-blur-sm p-4 border-b border-white/10">
+                    <div 
+                      className="w-full max-w-sm mx-auto rounded-2xl shadow-xl overflow-hidden"
+                      style={{
+                        backgroundColor: localProject.config.uiCustomization?.backgroundType === 'solid' 
+                          ? localProject.config.uiCustomization.backgroundColor 
+                          : '#ffffff'
+                      }}
+                    >
+                      <div 
+                        className="p-4 border-b"
+                        style={{
+                          backgroundColor: localProject.config.uiCustomization?.primaryColor || '#6d28d9',
+                          backgroundImage: localProject.config.uiCustomization?.backgroundType === 'gradient' 
+                            ? `linear-gradient(${localProject.config.uiCustomization.backgroundGradient?.direction || 'to-br'}, ${localProject.config.uiCustomization.backgroundGradient?.from || '#6d28d9'}, ${localProject.config.uiCustomization.backgroundGradient?.to || '#4c1d95'})`
+                            : 'none',
+                          borderBottomColor: localProject.config.uiCustomization?.primaryColor || '#6d28d9'
+                        }}
+                      >
                         <div className="flex items-center gap-3">
-                          <div className="w-8 h-8 bg-purple-600 rounded-lg flex items-center justify-center">
-                            <span className="text-white font-bold text-sm">AI</span>
+                          <div 
+                            className="w-8 h-8 rounded-lg flex items-center justify-center"
+                            style={{
+                              backgroundColor: localProject.config.uiCustomization?.textColor || '#ffffff'
+                            }}
+                          >
+                            <span 
+                              className="font-bold text-sm"
+                              style={{
+                                color: localProject.config.uiCustomization?.primaryColor || '#6d28d9'
+                              }}
+                            >
+                              AI
+                            </span>
                           </div>
                           <div>
-                            <h3 className="font-bold text-sm">{localProject.name}</h3>
-                            <p className="text-xs opacity-70">智能客服</p>
+                            <h3 
+                              className="font-bold text-sm"
+                              style={{
+                                color: localProject.config.uiCustomization?.textColor || '#ffffff'
+                              }}
+                            >
+                              {localProject.name}
+                            </h3>
+                            <p 
+                              className="text-xs opacity-70"
+                              style={{
+                                color: localProject.config.uiCustomization?.textColor || '#ffffff'
+                              }}
+                            >
+                              智能客服
+                            </p>
                           </div>
                         </div>
                       </div>
-                      <div className="p-4">
+                      <div 
+                        className="p-4"
+                        style={{
+                          backgroundColor: localProject.config.uiCustomization?.backgroundType === 'solid' 
+                            ? localProject.config.uiCustomization.backgroundColor 
+                            : '#ffffff'
+                        }}
+                      >
                         <div className="space-y-3">
                           <div className="flex justify-start">
-                            <div className="bg-gray-100 text-gray-800 px-3 py-2 rounded-lg text-sm max-w-xs">
+                            <div 
+                              className="px-3 py-2 rounded-lg text-sm max-w-xs"
+                              style={{
+                                backgroundColor: localProject.config.uiCustomization?.backgroundType === 'solid' 
+                                  ? `${localProject.config.uiCustomization.backgroundColor}80` 
+                                  : '#f3f4f6',
+                                color: localProject.config.uiCustomization?.textColor || '#1f2937'
+                              }}
+                            >
                               您好！我是智能客服助手 🤖
                             </div>
                           </div>
                           <div className="flex justify-end">
-                            <div className="bg-purple-600 text-white px-3 py-2 rounded-lg text-sm max-w-xs">
+                            <div 
+                              className="px-3 py-2 rounded-lg text-sm max-w-xs"
+                              style={{
+                                backgroundColor: localProject.config.uiCustomization?.primaryColor || '#6d28d9',
+                                color: localProject.config.uiCustomization?.backgroundType === 'solid' 
+                                  ? localProject.config.uiCustomization.primaryColor 
+                                  : '#ffffff'
+                              }}
+                            >
                               你好，我想了解产品信息
                             </div>
                           </div>
                           <div className="flex justify-start">
-                            <div className="bg-gray-100 text-gray-800 px-3 py-2 rounded-lg text-sm max-w-xs">
+                            <div 
+                              className="px-3 py-2 rounded-lg text-sm max-w-xs"
+                              style={{
+                                backgroundColor: localProject.config.uiCustomization?.backgroundType === 'solid' 
+                                  ? `${localProject.config.uiCustomization.backgroundColor}80` 
+                                  : '#f3f4f6',
+                                color: localProject.config.uiCustomization?.textColor || '#1f2937'
+                              }}
+                            >
                               好的，我来为您详细介绍产品功能
                             </div>
                           </div>

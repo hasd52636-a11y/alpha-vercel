@@ -8,6 +8,7 @@ import {
 } from 'lucide-react';
 import { aiService, RealtimeCallback, Annotation } from '../services/aiService';
 import { projectService } from '../services/projectService';
+import { mapUICustomizationToCSSVariables } from '../utils/cssVariables';
 
 const UserPreview: React.FC<{ projects?: ProductProject[]; projectId?: string }> = ({ projects, projectId: propProjectId }) => {
   const { id } = useParams();
@@ -47,6 +48,23 @@ const UserPreview: React.FC<{ projects?: ProductProject[]; projectId?: string }>
   const [annotations, setAnnotations] = useState<Annotation[]>([]);
   const [currentAnnotationType, setCurrentAnnotationType] = useState<'arrow' | 'circle' | 'text' | 'highlight'>('arrow');
   const [isAddingAnnotation, setIsAddingAnnotation] = useState(false);
+  
+  const themeStyles = mapUICustomizationToCSSVariables(project?.config.uiCustomization);
+  
+  // 动态背景样式
+  const getBackgroundStyle = (): React.CSSProperties => {
+    if (!project) return {};
+    const ui = project.config.uiCustomization;
+    if (ui?.backgroundType === 'gradient') {
+      const gradient = ui.backgroundGradient;
+      return {
+        background: `linear-gradient(${gradient.direction}, ${gradient.from}, ${gradient.to})`
+      };
+    } else if (ui?.backgroundType === 'solid') {
+      return { background: ui.backgroundColor };
+    }
+    return { background: 'linear-gradient(to bottom right, #1a103d, #2d1b69)' };
+  };
   
   // References
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -170,7 +188,7 @@ const UserPreview: React.FC<{ projects?: ProductProject[]; projectId?: string }>
   // 项目加载中
   if (projectLoading) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-[#1a103d] to-[#2d1b69] flex flex-col items-center justify-center p-6">
+      <div className="min-h-screen flex flex-col items-center justify-center p-6" style={getBackgroundStyle()}>
         <div className="max-w-md w-full bg-white rounded-[3rem] border-2 border-violet-500/30 p-8 shadow-2xl">
           <div className="text-center">
             <div className="w-20 h-20 bg-violet-500/20 text-violet-600 rounded-full flex items-center justify-center mx-auto mb-6">
@@ -187,7 +205,7 @@ const UserPreview: React.FC<{ projects?: ProductProject[]; projectId?: string }>
   // 处理项目不存在或验证失败的情况
   if (!project || projectError) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-[#1a103d] to-[#2d1b69] flex flex-col items-center justify-center p-6">
+      <div className="min-h-screen flex flex-col items-center justify-center p-6" style={getBackgroundStyle()}>
         <div className="max-w-md w-full bg-white rounded-[3rem] border-2 border-amber-500/30 p-8 shadow-2xl">
           <div className="text-center mb-8">
             <div className="w-20 h-20 bg-purple-500/20 text-purple-600 rounded-full flex items-center justify-center mx-auto mb-6">
@@ -927,7 +945,7 @@ const UserPreview: React.FC<{ projects?: ProductProject[]; projectId?: string }>
   };
 
   return (
-    <div className="flex flex-col h-screen w-full max-w-full sm:max-w-lg mx-auto bg-[#12151b] shadow-2xl relative overflow-hidden font-sans">
+    <div className="flex flex-col h-screen w-full max-w-full sm:max-w-lg mx-auto relative overflow-hidden font-sans" style={{ ...themeStyles, background: project?.config.uiCustomization?.backgroundType === 'gradient' ? `linear-gradient(${project.config.uiCustomization.backgroundGradient.direction}, ${project.config.uiCustomization.backgroundGradient.from}, ${project.config.uiCustomization.backgroundGradient.to})` : project?.config.uiCustomization?.backgroundType === 'solid' ? project.config.uiCustomization.backgroundColor : '#12151b' }}>
       {/* Video chat interface */}
       {isVideoChatActive && (
         <div className="absolute inset-0 z-50 bg-[#0a0c10] flex flex-col">
@@ -935,7 +953,7 @@ const UserPreview: React.FC<{ projects?: ProductProject[]; projectId?: string }>
           <header className="bg-[#0f1218]/80 backdrop-blur-3xl p-6 text-white shrink-0 border-b border-white/5 z-20">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-4">
-                <div className="w-12 h-12 purple-gradient-btn rounded-2xl flex items-center justify-center">
+                <div className="w-12 h-12 rounded-2xl flex items-center justify-center text-white" style={{ background: 'linear-gradient(135deg, var(--primary-color, #7c3aed), #a855f7)', boxShadow: '0 4px 15px rgba(124, 58, 237, 0.4)' }}>
                   <Sparkles size={24} />
                 </div>
                 <div>
@@ -1070,7 +1088,7 @@ const UserPreview: React.FC<{ projects?: ProductProject[]; projectId?: string }>
                   <button className="p-4 sm:p-3 bg-white/10 rounded-full text-white">
                     <Volume2 size={24} className="sm:size-5" />
                   </button>
-                  <button className="p-4 sm:p-3 purple-gradient-btn rounded-full text-white">
+                  <button className="p-4 sm:p-3 rounded-full text-white" style={{ background: 'linear-gradient(135deg, var(--primary-color, #7c3aed), #a855f7)', boxShadow: '0 4px 15px rgba(124, 58, 237, 0.4)' }}>
                     <Video size={24} className="sm:size-5" />
                   </button>
                 </div>
@@ -1079,14 +1097,14 @@ const UserPreview: React.FC<{ projects?: ProductProject[]; projectId?: string }>
           </div>
 
           {/* Virtual human and chat area */}
-          <div className="w-full h-52 sm:h-64 bg-gradient-to-b from-[#1a1d29] to-[#0f1218] flex flex-col">
+          <div className="w-full h-52 sm:h-64 flex flex-col" style={{ background: 'linear-gradient(to bottom, var(--secondary-color, #1a1d29), var(--text-color, #0f1218))' }}>
             {/* Virtual human area */}
             <div className="h-40 sm:h-48 flex items-center justify-center relative overflow-hidden">
               <div className="absolute inset-0 opacity-20">
                 <div className="w-full h-full bg-[radial-gradient(circle_at_center,_var(--tw-gradient-stops))] from-violet-500 via-transparent to-transparent"></div>
               </div>
               <div className="relative z-10 text-center">
-                <div className="w-16 h-16 sm:w-20 sm:h-20 mx-auto mb-3 bg-gradient-to-br from-violet-500 to-purple-600 rounded-full flex items-center justify-center">
+                <div className="w-16 h-16 sm:w-20 sm:h-20 mx-auto mb-3 rounded-full flex items-center justify-center" style={{ background: 'linear-gradient(to bottom right, var(--primary-color, #3b82f6), var(--secondary-color, #6366f1))' }}>
                   <Sparkles size={32} className="sm:size-10 text-white" />
                 </div>
                 <h3 className="text-white font-bold text-sm">智能助手</h3>
@@ -1107,7 +1125,7 @@ const UserPreview: React.FC<{ projects?: ProductProject[]; projectId?: string }>
                     placeholder="问我关于此产品的问题..."
                     className="w-full bg-white/5 border border-white/10 px-4 py-2.5 sm:px-6 sm:py-3 rounded-xl text-base sm:text-sm text-white outline-none focus:ring-2 focus:ring-violet-500/20"
                   />
-                  <button onClick={() => handleSend()} className="absolute right-2 top-1.5 p-3 sm:p-2 purple-gradient-btn text-white rounded-lg">
+                  <button onClick={() => handleSend()} className="absolute right-2 top-1.5 p-3 sm:p-2 text-white rounded-lg" style={{ background: 'linear-gradient(135deg, var(--primary-color, #7c3aed), #a855f7)', boxShadow: '0 4px 15px rgba(124, 58, 237, 0.4)' }}>
                     <Send size={20} className="sm:size-4" />
                   </button>
                 </div>
@@ -1120,10 +1138,10 @@ const UserPreview: React.FC<{ projects?: ProductProject[]; projectId?: string }>
       {/* Regular chat interface */}
       {!isVideoChatActive && (
         <>
-          <header className="bg-[#0f1218]/80 backdrop-blur-3xl p-6 text-white shrink-0 border-b border-white/5 z-20">
+          <header className="p-6 text-white shrink-0 border-b border-white/5 z-20 backdrop-blur-3xl" style={{ background: 'rgba(15, 18, 24, 0.8)' }}>
             <div className="flex items-center justify-between mb-5">
               <div className="flex items-center gap-4">
-                <div className="w-12 h-12 purple-gradient-btn rounded-2xl flex items-center justify-center">
+                <div className="w-12 h-12 rounded-2xl flex items-center justify-center" style={{ background: 'linear-gradient(to bottom right, var(--primary-color, #3b82f6), var(--secondary-color, #6366f1))' }}>
                   <Sparkles size={24} />
                 </div>
                 <div>
@@ -1213,8 +1231,10 @@ const UserPreview: React.FC<{ projects?: ProductProject[]; projectId?: string }>
               <div key={i} className={`flex ${m.role === 'user' ? 'justify-end' : 'justify-start'} animate-in slide-in-from-bottom-2`}>
                 <div className={`max-w-[85%] ${m.role === 'user' ? 'order-1' : 'order-2'}`}>
                   <div className={`p-4 sm:p-5 rounded-2xl sm:rounded-[2rem] shadow-xl text-base sm:text-sm leading-relaxed ${
-                    m.role === 'user' ? 'bg-violet-600 text-white rounded-br-none' : 'bg-white/5 text-slate-100 rounded-bl-none border border-white/5'
-                  }`}>
+                    m.role === 'user' ? 'text-white rounded-br-none' : 'text-slate-100 rounded-bl-none border border-white/5'
+                  }`} style={{
+                    background: m.role === 'user' ? 'var(--user-message-bg, #3b82f6)' : 'var(--ai-message-bg, rgba(255,255,255,0.05))'
+                  }}>
                     {m.image && <img src={m.image} className="rounded-2xl mb-4" />}
                     <p>{m.text}</p>
                   </div>
@@ -1233,7 +1253,7 @@ const UserPreview: React.FC<{ projects?: ProductProject[]; projectId?: string }>
             {streamingMessage && (
               <div className="flex justify-start animate-in slide-in-from-bottom-2">
                 <div className="max-w-[85%] order-2">
-                  <div className="p-5 rounded-[2rem] shadow-xl text-sm leading-relaxed bg-white/5 text-slate-100 rounded-tl-none border border-white/5">
+                  <div className="p-5 rounded-[2rem] shadow-xl text-sm leading-relaxed text-slate-100 rounded-tl-none border border-white/5" style={{ background: 'var(--ai-message-bg, rgba(255,255,255,0.05))' }}>
                     <p>{streamingMessage}</p>
                   </div>
                 </div>
@@ -1241,16 +1261,16 @@ const UserPreview: React.FC<{ projects?: ProductProject[]; projectId?: string }>
             )}
             
             {isTyping && !streamingMessage && (
-              <div className="flex gap-2 p-4 bg-white/5 w-fit rounded-2xl rounded-tl-none">
-                <div className="w-2 h-2 sm:w-1.5 sm:h-1.5 bg-violet-500 rounded-full animate-bounce"></div>
-                <div className="w-2 h-2 sm:w-1.5 sm:h-1.5 bg-violet-500 rounded-full animate-bounce" style={{animationDelay: '0.2s'}}></div>
-                <div className="w-2 h-2 sm:w-1.5 sm:h-1.5 bg-violet-500 rounded-full animate-bounce" style={{animationDelay: '0.4s'}}></div>
+              <div className="flex gap-2 p-4 w-fit rounded-2xl rounded-tl-none" style={{ background: 'var(--ai-message-bg, rgba(255,255,255,0.05))' }}>
+                <div className="w-2 h-2 sm:w-1.5 sm:h-1.5 rounded-full animate-bounce" style={{ background: 'var(--primary-color, #3b82f6)' }}></div>
+                <div className="w-2 h-2 sm:w-1.5 sm:h-1.5 rounded-full animate-bounce" style={{ background: 'var(--primary-color, #3b82f6)' }}></div>
+                <div className="w-2 h-2 sm:w-1.5 sm:h-1.5 rounded-full animate-bounce" style={{ background: 'var(--primary-color, #3b82f6)' }}></div>
               </div>
             )}
           </div>
 
           {/* 手机端优化：输入框单独一行 */}
-          <div className="p-3 sm:p-4 bg-[#0f1218]/80 backdrop-blur-3xl border-t border-white/5">
+          <div className="p-3 sm:p-4 border-t border-white/5 backdrop-blur-3xl" style={{ background: 'rgba(15, 18, 24, 0.8)' }}>
             <input
               ref={ocrFileInputRef}
               type="file"
@@ -1294,7 +1314,7 @@ const UserPreview: React.FC<{ projects?: ProductProject[]; projectId?: string }>
                 placeholder="问我关于此产品的问题..."
                 className="w-full bg-white/5 border border-white/10 px-4 py-3 sm:px-5 sm:py-4 rounded-xl text-base sm:text-sm text-white outline-none focus:ring-2 focus:ring-violet-500/20 pr-16"
               />
-              <button onClick={() => handleSend()} className="absolute right-2.5 top-2.5 p-3 sm:p-2 purple-gradient-btn text-white rounded-lg">
+              <button onClick={() => handleSend()} className="absolute right-2.5 top-2.5 p-3 sm:p-2 text-white rounded-lg" style={{ background: 'linear-gradient(135deg, var(--primary-color, #7c3aed), #a855f7)', boxShadow: '0 4px 15px rgba(124, 58, 237, 0.4)' }}>
                 <Send size={20} className="sm:size-5" />
               </button>
             </div>

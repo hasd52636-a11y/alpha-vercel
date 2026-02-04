@@ -57,7 +57,7 @@ const LinkEntryHandler: React.FC<{ projects: ProductProject[] }> = ({ projects }
         setError('');
         
         // 增强的shortCode验证 - 正则校验长度和格式
-        const shortCodePattern = /^[A-Z0-9]{8,12}$/;
+        const shortCodePattern = /^[A-Z0-9]{10}$/;
         if (!shortCodePattern.test(shortCode)) {
           setError('链接格式不正确，请检查二维码是否完整');
           setLoading(false);

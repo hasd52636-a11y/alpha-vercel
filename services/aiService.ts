@@ -9,16 +9,18 @@ import { i18n } from "../utils/i18n";
 // 智谱AI API配置
 const ZHIPU_BASE_URL = '/api/zhipu'
 
-// 智谱模型类型 - 基于官方API文档，保持简洁
+// 智谱模型类型 - 基于官方API文档
 export enum ZhipuModel {
-  GLM_4_7 = 'glm-4.7',                  // 最新旗舰模型（默认）
-  GLM_4_6 = 'glm-4.6',                  // 高性价比选择
-  GLM_4_5_FLASH = 'glm-4.5-flash',     // 免费模型
-  GLM_4_6V = 'GLM-4.6V',               // 视觉理解模型（大写V）
-  GLM_4_6V_FLASH = 'GLM-4.6V-Flash',  // 免费视觉模型
-  GLM_4_VOICE = 'glm-4-voice',          // 语音模型
-  GLM_REALTIME = 'glm-realtime-flash',   // 实时交互专用
-  EMBEDDING_3 = 'embedding-3',           // 向量模型
+  GLM_4_7 = 'glm-4.7',
+  GLM_4_6 = 'glm-4.6',
+  GLM_4_FLASH = 'glm-4.7-flash',
+  GLM_4V = 'glm-4.6v',
+  GLM_4V_FLASH = 'glm-4.6v-flash',
+  GLM_4_VOICE = 'glm-4-voice',
+  GLM_REALTIME = 'glm-realtime',
+  GLM_TTS = 'glm-tts',
+  COGVIDEO_X = 'cogvideox-3',
+  EMBEDDING_3 = 'embedding-3',
 }
 
 // 智能路由配置 - 根据任务类型自动选择最优模型
@@ -35,26 +37,26 @@ export interface SmartRoutingConfig {
 
 // 默认智能路由配置 - 基于最新模型性能和成本优化
 export const DEFAULT_SMART_ROUTING: SmartRoutingConfig = {
-  textChat: ZhipuModel.GLM_4_7,              // 最新旗舰模型，最佳对话体验
-  codeGeneration: ZhipuModel.GLM_4_7,        // Agentic Coding 专用优化
-  imageAnalysis: ZhipuModel.GLM_4_6V,       // 最强视觉理解能力（大写V）
-  voiceInteraction: ZhipuModel.GLM_4_VOICE,  // 专业语音模型
-  embedding: ZhipuModel.EMBEDDING_3,         // 最新向量模型
-  realtime: ZhipuModel.GLM_REALTIME,         // 实时交互专用
-  rolePlay: ZhipuModel.GLM_4_7,           // 使用通用模型
-  thinking: ZhipuModel.GLM_4_7,             // 支持思考模式
+  textChat: ZhipuModel.GLM_4_7,
+  codeGeneration: ZhipuModel.GLM_4_7,
+  imageAnalysis: ZhipuModel.GLM_4V,
+  voiceInteraction: ZhipuModel.GLM_4_VOICE,
+  embedding: ZhipuModel.EMBEDDING_3,
+  realtime: ZhipuModel.GLM_REALTIME,
+  rolePlay: ZhipuModel.GLM_4_7,
+  thinking: ZhipuModel.GLM_4_7,
 };
 
 // 高性价比路由配置 - 成本优化版本
 export const COST_OPTIMIZED_ROUTING: SmartRoutingConfig = {
-  textChat: ZhipuModel.GLM_4_5_FLASH,        // 免费高效
-  codeGeneration: ZhipuModel.GLM_4_6,        // 高性价比编码
-  imageAnalysis: ZhipuModel.GLM_4_6V_FLASH, // 免费视觉分析
-  voiceInteraction: ZhipuModel.GLM_4_VOICE,   // 语音专用
-  embedding: ZhipuModel.EMBEDDING_3,         // 向量化
-  realtime: ZhipuModel.GLM_REALTIME,         // 实时交互
-  rolePlay: ZhipuModel.GLM_4_5_FLASH,        // 通用模型
-  thinking: ZhipuModel.GLM_4_6,               // 思考能力
+  textChat: ZhipuModel.GLM_4_FLASH,
+  codeGeneration: ZhipuModel.GLM_4_6,
+  imageAnalysis: ZhipuModel.GLM_4V_FLASH,
+  voiceInteraction: ZhipuModel.GLM_4_VOICE,
+  embedding: ZhipuModel.EMBEDDING_3,
+  realtime: ZhipuModel.GLM_REALTIME,
+  rolePlay: ZhipuModel.GLM_4_FLASH,
+  thinking: ZhipuModel.GLM_4_6,
 };
 
 // 任务类型检测
@@ -125,7 +127,7 @@ export class AIService {
     // 图片分析 -> 视觉模型
     if (options?.imageUrl || options?.imageBuffer || 
         lowerPrompt.includes('图片') || lowerPrompt.includes('image')) {
-      return ZhipuModel.GLM_4_6V;
+      return ZhipuModel.GLM_4V;
     }
     
     // 语音相关 -> 语音模型
@@ -750,7 +752,7 @@ export class AIService {
   }) {
     // 仅使用智谱AI实现
     const data = await this.zhipuFetch('/chat/completions', {
-      model: options?.model || 'glm-4.6v',
+      model: options?.model || 'glm-4.7',
       messages: [{
         role: 'user',
         content: content
@@ -858,9 +860,9 @@ export class AIService {
     }
 
     try {
-      // 使用 GLM-4.6V 视觉理解模型（官方文档正确名称，大写V）
+      // 使用 glm-4.6v 视觉理解模型
       const data = await this.zhipuFetch('/chat/completions', {
-        model: 'GLM-4.6V',
+        model: 'glm-4.6v',
         messages: [{
           role: 'user',
           content: [
@@ -871,12 +873,12 @@ export class AIService {
       });
       return data.choices[0].message.content;
     } catch (error) {
-      console.error('Image analysis failed, trying free model:', error);
+      console.error('glm-4.6v failed, trying free model:', error);
       
-      // 如果 GLM-4.6V 失败，尝试使用免费的 GLM-4.6V-Flash
+      // 如果 glm-4.6v 失败，尝试使用免费的 glm-4.6v-flash
       try {
         const data = await this.zhipuFetch('/chat/completions', {
-          model: 'GLM-4.6V-Flash',
+          model: 'glm-4.6v-flash',
           messages: [{
             role: 'user',
             content: [
@@ -887,7 +889,7 @@ export class AIService {
         });
         return data.choices[0].message.content;
       } catch (error2) {
-        console.error('Free model also failed:', error2);
+        console.error('glm-4.6v-flash also failed:', error2);
         return this.generateMockImageAnalysis(visionPrompt);
       }
     }
@@ -902,7 +904,7 @@ export class AIService {
     // 仅使用智谱AI实现
     try {
       const buffer = await this.zhipuFetch('/audio/speech', {
-        model: 'glm-tts',
+        model: 'GLM-TTS',
         input: text,
         voice: voiceName || 'tongtong',
         response_format: 'wav'
@@ -1589,29 +1591,19 @@ ${companyName}技术支持：
       return this.zhipuApiKey;
     }
     
-    // 从Vite环境变量获取（扫码页面优先使用）
+    // 从Vite环境变量获取（正确用法：import.meta.env）
     try {
-      if (typeof window !== 'undefined' && (window as any).import?.meta?.env?.VITE_ZHIPU_API_KEY) {
-        this.zhipuApiKey = (window as any).import.meta.env.VITE_ZHIPU_API_KEY;
+      if (typeof import.meta !== 'undefined' && (import.meta as any).env?.VITE_ZHIPU_API_KEY) {
+        this.zhipuApiKey = (import.meta as any).env.VITE_ZHIPU_API_KEY;
         return this.zhipuApiKey;
       }
     } catch (e) {
       console.error('Error accessing import.meta.env:', e);
     }
     
-    // 尝试直接访问环境变量
-    try {
-      if ((globalThis as any).VITE_ZHIPU_API_KEY) {
-        this.zhipuApiKey = (globalThis as any).VITE_ZHIPU_API_KEY;
-        return this.zhipuApiKey;
-      }
-    } catch (e) {
-      console.error('Error accessing globalThis:', e);
-    }
-    
-    // 从Node.js环境变量获取
-    if (typeof process !== 'undefined' && process.env?.ZHIPU_API_KEY) {
-      this.zhipuApiKey = process.env.ZHIPU_API_KEY;
+    // 从Node.js环境变量获取（服务端）
+    if (typeof process !== 'undefined' && (process as any).env?.ZHIPU_API_KEY) {
+      this.zhipuApiKey = (process as any).env.ZHIPU_API_KEY;
       return this.zhipuApiKey;
     }
     
@@ -1624,19 +1616,12 @@ ${companyName}技术支持：
       }
     }
     
-    // 从window全局变量获取（备用方案）
-    if (typeof window !== 'undefined' && (window as any).ZHIPU_API_KEY) {
-      this.zhipuApiKey = (window as any).ZHIPU_API_KEY;
-      return this.zhipuApiKey;
-    }
-    
     // 从URL参数获取（扫码页面应急方案）
     if (typeof window !== 'undefined' && window.location) {
       const urlParams = new URLSearchParams(window.location.search);
       const apiKeyParam = urlParams.get('api_key');
       if (apiKeyParam) {
         this.zhipuApiKey = apiKeyParam;
-        // 保存到localStorage，避免重复获取
         if (typeof localStorage !== 'undefined') {
           localStorage.setItem('zhipuApiKey', apiKeyParam);
         }
@@ -1654,9 +1639,9 @@ ${companyName}技术支持：
       return false;
     }
 
-    // 智谱AI API密钥通常以特定前缀开头，长度约为32-64个字符
-    // 这里使用较宽松的验证规则，可以根据实际API密钥格式进行调整
-    const apiKeyRegex = /^[a-zA-Z0-9_-]{32,64}$/;
+    // 智谱AI API密钥格式: xxx.yyy.zzz 或 xxx.yyy 或纯32位字符串
+    // 支持带点的格式和纯字母数字格式
+    const apiKeyRegex = /^[a-zA-Z0-9_-]+(\.[a-zA-Z0-9_-]+)*$/;
     return apiKeyRegex.test(apiKey);
   }
 }
