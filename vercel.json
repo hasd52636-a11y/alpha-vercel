@@ -40,6 +40,10 @@
       "dest": "/api/knowledge.mjs"
     },
     {
+      "src": "/api/data-export",
+      "dest": "/api/data-export.mjs"
+    },
+    {
       "src": "/api/project/(.*)",
       "dest": "/api/project/[id].ts"
     },
