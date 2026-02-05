@@ -210,7 +210,68 @@ const Settings: React.FC = () => {
                 </div>
               </div>
             </div>
-            
+
+            {/* 工具能力配置 - 新增 */}
+            <div className="mt-6 space-y-3">
+              <label className="text-xs font-bold text-amber-500 uppercase tracking-wider block">高级工具能力</label>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                <label className="flex items-center gap-2 cursor-pointer p-3 bg-white/5 rounded-xl border border-white/5 hover:bg-white/10 transition-colors">
+                  <input 
+                    type="checkbox" 
+                    id="enableFunctionCall"
+                    defaultChecked={false}
+                    onChange={(e) => {
+                      localStorage.setItem('tool_enableFunctionCall', String(e.target.checked));
+                    }}
+                    className="w-4 h-4 accent-amber-500"
+                  />
+                  <span className="text-sm text-slate-300">🔧 函数调用</span>
+                </label>
+                
+                <label className="flex items-center gap-2 cursor-pointer p-3 bg-white/5 rounded-xl border border-white/5 hover:bg-white/10 transition-colors">
+                  <input 
+                    type="checkbox" 
+                    id="enableWebSearch"
+                    defaultChecked={false}
+                    onChange={(e) => {
+                      localStorage.setItem('tool_enableWebSearch', String(e.target.checked));
+                    }}
+                    className="w-4 h-4 accent-amber-500"
+                  />
+                  <span className="text-sm text-slate-300">🌐 网页搜索</span>
+                </label>
+                
+                <label className="flex items-center gap-2 cursor-pointer p-3 bg-white/5 rounded-xl border border-white/5 hover:bg-white/10 transition-colors">
+                  <input 
+                    type="checkbox" 
+                    id="enableRetrieval"
+                    defaultChecked={true}
+                    onChange={(e) => {
+                      localStorage.setItem('tool_enableRetrieval', String(e.target.checked));
+                    }}
+                    className="w-4 h-4 accent-amber-500"
+                  />
+                  <span className="text-sm text-slate-300">📚 知识库检索</span>
+                </label>
+                
+                <label className="flex items-center gap-2 cursor-pointer p-3 bg-white/5 rounded-xl border border-white/5 hover:bg-white/10 transition-colors">
+                  <input 
+                    type="checkbox" 
+                    id="enableThinking"
+                    defaultChecked={false}
+                    onChange={(e) => {
+                      localStorage.setItem('tool_enableThinking', String(e.target.checked));
+                    }}
+                    className="w-4 h-4 accent-amber-500"
+                  />
+                  <span className="text-sm text-slate-300">🧠 深度思考</span>
+                </label>
+              </div>
+              <p className="text-xs text-amber-500/70">
+                启用后AI可调用外部工具、搜索网页、检索知识库或进行深度推理
+              </p>
+            </div>
+
             <p className="text-xs text-amber-500/70 mt-4">
               系统会自动根据不同任务类型选择合适的模型，无需手动指定。所有功能在API密钥验证通过后自动启用。
             </p>

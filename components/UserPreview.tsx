@@ -49,7 +49,36 @@ const UserPreview: React.FC<{ projects?: ProductProject[]; projectId?: string }>
   const [currentAnnotationType, setCurrentAnnotationType] = useState<'arrow' | 'circle' | 'text' | 'highlight'>('arrow');
   const [isAddingAnnotation, setIsAddingAnnotation] = useState(false);
   
-  const themeStyles = mapUICustomizationToCSSVariables(project?.config.uiCustomization);
+  // 动态 CSS 变量映射 - 支持 localStorage 中的主题覆盖
+  const themeStyles = React.useMemo(() => {
+    if (!project?.config?.uiCustomization) {
+      return mapUICustomizationToCSSVariables(undefined);
+    }
+
+    // 检查是否有 localStorage 中的主题覆盖
+    let localTheme = null;
+    if (project.id) {
+      try {
+        const stored = localStorage.getItem(`project_${project.id}_theme`);
+        if (stored) {
+          localTheme = JSON.parse(stored);
+        }
+      } catch (e) {
+        console.warn('Failed to parse local theme:', e);
+      }
+    }
+
+    // 合并配置：localStorage 覆盖 > 项目配置
+    const mergedConfig = localTheme ? {
+      ...project.config.uiCustomization,
+      selectedTheme: localTheme.selectedTheme,
+      primaryColor: localTheme.primaryColor || project.config.uiCustomization.primaryColor,
+      backgroundColor: localTheme.backgroundColor || project.config.uiCustomization.backgroundColor,
+      textColor: localTheme.textColor || project.config.uiCustomization.textColor,
+    } : project.config.uiCustomization;
+
+    return mapUICustomizationToCSSVariables(mergedConfig);
+  }, [project?.config?.uiCustomization, project?.id]);
   
   // 动态背景样式
   const getBackgroundStyle = (): React.CSSProperties => {

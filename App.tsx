@@ -1,15 +1,16 @@
 
 import React, { useState, useEffect } from 'react';
 import { HashRouter as Router, Routes, Route, Link, useNavigate, useParams, Navigate } from 'react-router-dom';
-import { 
-  LayoutDashboard, 
-  Package, 
-  BarChart3, 
-  Settings as SettingsIcon, 
-  Plus, 
-  Search, 
-  Bell, 
+import {
+  LayoutDashboard,
+  Package,
+  BarChart3,
+  Settings as SettingsIcon,
+  Plus,
+  Search,
+  Bell,
   User,
+  Users,
   ChevronRight,
   MoreVertical,
   QrCode,
@@ -21,7 +22,9 @@ import {
   Video,
   MessageSquare,
   AlertCircle,
-  CheckCircle2
+  CheckCircle2,
+  ThumbsUp,
+  Filter
 } from 'lucide-react';
 import { ProductProject, ProjectStatus, ProjectConfig, AIProvider } from './types';
 import { projectService } from './services/projectService';
@@ -35,7 +38,11 @@ import VideoChat from './components/VideoChat';
 import Settings from './components/Settings';
 import KnowledgeBase from './components/KnowledgeBase';
 import Diagnostics from './components/Diagnostics';
+import TicketManager from './components/TicketManager';
 import ErrorBoundary from './components/ErrorBoundary';
+import AdminDashboard from './components/AdminDashboard';
+import ManualEvaluationPanel from './components/ManualEvaluationPanel';
+import CoreRuleEditor from './components/CoreRuleEditor';
 
 // 链接入口处理组件 - 用于处理复杂链接，直接渲染用户界面而不重定向
 const LinkEntryHandler: React.FC<{ projects: ProductProject[] }> = ({ projects }) => {
@@ -296,6 +303,7 @@ const Sidebar = ({ projects }: { projects: ProductProject[] }) => {
         <SidebarLink to="/admin/dashboard" icon={<LayoutDashboard size={20} />} labelEn="Dashboard" labelZh="控制面板" />
         <SidebarLink to="/admin/projects" icon={<Package size={20} />} labelEn="Products" labelZh="产品管理" />
         <SidebarLink to="/admin/analytics" icon={<BarChart3 size={20} />} labelEn="Analytics" labelZh="数据分析" />
+        <SidebarLink to="/admin/tickets" icon={<MessageSquare size={20} />} labelEn="Tickets" labelZh="工单管理" />
         <SidebarLink to="/admin/settings" icon={<SettingsIcon size={20} />} labelEn="API Settings" labelZh="API设置" />
         <SidebarLink to="/admin/diagnostics" icon={<CheckCircle2 size={20} />} labelEn="Diagnostics" labelZh="系统诊断" />
         {/* 商家后台专有功能 */}
@@ -501,11 +509,16 @@ const App: React.FC = () => {
                 <main className="p-12 pb-24">
                   <Routes>
                     <Route path="/dashboard" element={<Dashboard projects={projects} />} />
+                    <Route path="/admin-dashboard" element={<AdminDashboard />} />
+                    <Route path="/evaluation" element={<ManualEvaluationPanel />} />
+                    <Route path="/rules" element={<CoreRuleEditor />} />
                     <Route path="/projects" element={<ProjectList projects={projects} onAdd={addProject} onToggleStatus={toggleProjectStatus} onDelete={deleteProject} />} />
                     <Route path="/projects/:id" element={<ProjectDetail projects={projects} onUpdate={updateProject} />} />
                     <Route path="/analytics" element={<Analytics />} />
+                    <Route path="/tickets" element={<TicketManager />} />
                     <Route path="/settings" element={<Settings />} />
                     <Route path="/diagnostics" element={<Diagnostics />} />
+                    {/* 商家后台专有功能 */}
                     <Route path="/knowledge" element={<KnowledgeBase />} />
                   </Routes>
                 </main>
@@ -551,9 +564,13 @@ const App: React.FC = () => {
                 <main className="p-12 pb-24">
                   <Routes>
                     <Route path="/dashboard" element={<Dashboard projects={projects} />} />
+                    <Route path="/admin-dashboard" element={<AdminDashboard />} />
+                    <Route path="/evaluation" element={<ManualEvaluationPanel />} />
+                    <Route path="/rules" element={<CoreRuleEditor />} />
                     <Route path="/projects" element={<ProjectList projects={projects} onAdd={addProject} onToggleStatus={toggleProjectStatus} onDelete={deleteProject} />} />
                     <Route path="/projects/:id" element={<ProjectDetail projects={projects} onUpdate={updateProject} />} />
                     <Route path="/analytics" element={<Analytics />} />
+                    <Route path="/tickets" element={<TicketManager />} />
                     <Route path="/settings" element={<Settings />} />
                     <Route path="/diagnostics" element={<Diagnostics />} />
                     {/* 商家后台专有功能 */}

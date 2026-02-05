@@ -48,6 +48,13 @@ const VideoChat: React.FC<{ projects: ProductProject[] }> = ({ projects }) => {
   const [ocrResult, setOcrResult] = useState<string>('');
   const [ocrImage, setOcrImage] = useState<string | null>(null);
   const [ocrMessage, setOcrMessage] = useState({ type: 'info' as 'info' | 'success' | 'error', text: '' });
+  
+  // 视频生成状态
+  const [isVideoGenerating, setIsVideoGenerating] = useState(false);
+  const [videoPrompt, setVideoPrompt] = useState('');
+  const [generatedVideo, setGeneratedVideo] = useState<string | null>(null);
+  const [videoGenerationStatus, setVideoGenerationStatus] = useState<string>('');
+  
   const fileInputRef = useRef<HTMLInputElement>(null);
   
   // 引用
@@ -419,6 +426,60 @@ const VideoChat: React.FC<{ projects: ProductProject[] }> = ({ projects }) => {
     }
   };
   
+  // 生成视频
+  const generateVideo = async () => {
+    if (!videoPrompt.trim()) return;
+    
+    setIsVideoGenerating(true);
+    setVideoGenerationStatus('正在生成视频...');
+    
+    try {
+      const response = await fetch('/api/video', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          prompt: videoPrompt,
+          duration: 10,
+          resolution: '720p',
+          model: 'cogvideox-3'
+        })
+      });
+      
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.error || '视频生成失败');
+      }
+      
+      const data = await response.json();
+      setGeneratedVideo(data.videoUrl);
+      setVideoGenerationStatus('视频生成成功');
+      
+      // 将视频生成结果发送到聊天
+      setMessages(prev => [...prev, { 
+        role: 'assistant', 
+        text: `视频生成成功！您可以查看生成的视频。` 
+      }]);
+    } catch (error) {
+      console.error('视频生成失败:', error);
+      setVideoGenerationStatus('视频生成失败，请重试');
+      setMessages(prev => [...prev, { 
+        role: 'assistant', 
+        text: `视频生成失败: ${error instanceof Error ? error.message : '未知错误'}` 
+      }]);
+    } finally {
+      setIsVideoGenerating(false);
+    }
+  };
+  
+  // 清除视频生成结果
+  const clearVideoResults = () => {
+    setGeneratedVideo(null);
+    setVideoPrompt('');
+    setVideoGenerationStatus('');
+  };
+  
   // 打开文件选择器
   const openFilePicker = () => {
     fileInputRef.current?.click();
@@ -666,6 +727,67 @@ const VideoChat: React.FC<{ projects: ProductProject[] }> = ({ projects }) => {
               </div>
             </div>
           )}
+          
+          {/* 视频生成区域 */}
+          <div className="mx-4 mb-4 p-3 bg-white/5 rounded-lg border border-white/10">
+            <div className="flex justify-between items-start mb-2">
+              <h4 className="text-sm font-semibold text-white flex items-center gap-1">
+                <Video size={14} />
+                视频生成
+              </h4>
+              {generatedVideo && (
+                <button
+                  onClick={clearVideoResults}
+                  className="text-xs text-white/50 hover:text-white transition-colors"
+                >
+                  <X size={14} />
+                </button>
+              )}
+            </div>
+            {!generatedVideo ? (
+              <div className="space-y-3">
+                <input
+                  type="text"
+                  value={videoPrompt}
+                  onChange={(e) => setVideoPrompt(e.target.value)}
+                  placeholder="输入视频生成提示词..."
+                  className="w-full bg-white/5 border border-white/10 px-3 py-2 rounded-lg text-white text-sm outline-none"
+                />
+                <button
+                  onClick={generateVideo}
+                  disabled={isVideoGenerating || !videoPrompt.trim()}
+                  className="w-full py-2 bg-violet-600 text-white rounded-lg text-sm font-medium hover:bg-violet-700 disabled:bg-violet-600/50 disabled:cursor-not-allowed transition-colors"
+                >
+                  {isVideoGenerating ? (
+                    <div className="flex items-center justify-center gap-2">
+                      <Loader2 className="animate-spin" size={16} />
+                      生成中...
+                    </div>
+                  ) : (
+                    '生成视频'
+                  )}
+                </button>
+                {videoGenerationStatus && (
+                  <p className="text-xs text-white/60 text-center">
+                    {videoGenerationStatus}
+                  </p>
+                )}
+              </div>
+            ) : (
+              <div className="space-y-3">
+                <div className="mb-3">
+                  <video
+                    src={generatedVideo}
+                    controls
+                    className="w-full h-40 object-contain bg-white/5 rounded"
+                  />
+                </div>
+                <p className="text-xs text-green-400 text-center">
+                  视频生成成功！
+                </p>
+              </div>
+            )}
+          </div>
           
           {/* 输入区域 */}
           <div className="p-4 border-t border-white/5">

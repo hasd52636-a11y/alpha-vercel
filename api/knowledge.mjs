@@ -246,6 +246,104 @@ export default async function handler(req) {
       });
     }
 
+    // Deep Research - 深度研究功能
+    if (action === 'deep_research') {
+      if (!query) {
+        return new Response(JSON.stringify({ error: 'Query required' }), {
+          status: 400,
+          headers: { 'Content-Type': 'application/json' },
+        });
+      }
+
+      // 先检索相关知识库内容
+      const queryEmbedding = await createEmbedding(query, apiKey);
+      
+      let contextDocs = [];
+      try {
+        const { data } = await supabase.rpc('match_knowledge', {
+          query_embedding: queryEmbedding,
+          match_threshold: 0.1,
+          match_count: 10,
+          filter_project_id: targetProjectId
+        });
+        contextDocs = data || [];
+      } catch {
+        const { data: allDocs } = await supabase
+          .from('knowledge_vectors')
+          .select('*')
+          .eq('project_id', targetProjectId);
+
+        contextDocs = (allDocs || [])
+          .filter(doc => doc.embedding)
+          .map(doc => ({
+            id: doc.id,
+            similarity: cosineSimilarity(queryEmbedding, doc.embedding),
+            content: doc.content,
+            metadata: doc.metadata,
+          }))
+          .sort((a, b) => b.similarity - a.similarity)
+          .slice(0, 10);
+      }
+
+      // 使用智谱API进行深度分析
+      const context = contextDocs.map(doc => 
+        `[相似度: ${(doc.similarity || doc.similarity || 0).toFixed(2)}]\n${doc.content}`
+      ).join('\n\n---\n\n');
+
+      const researchPrompt = `你是一个专业的研究分析师。请根据以下知识库资料，对用户提出的问题进行深入分析和研究。
+
+知识库资料：
+${context || '（暂无相关知识库资料）'}
+
+用户问题：${query}
+
+请进行深度分析研究：
+1. 先分析问题的核心要点
+2. 从知识库中提取相关信息
+3. 进行综合分析和推理
+4. 提供详细的研究结论
+5. 如有不确定之处，明确指出
+
+请用专业、详细的方式回答。`;
+
+      const glmResponse = await fetch('https://open.bigmodel.cn/api/paas/v4/chat/completions', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${apiKey}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          model: 'glm-4.7',
+          messages: [
+            { role: 'system', content: '你是一个专业的研究分析师，擅长深度分析和综合研究。' },
+            { role: 'user', content: researchPrompt }
+          ],
+          temperature: 0.7,
+          max_tokens: 4096,
+          thinking: { type: 'enabled' }
+        }),
+      });
+
+      if (!glmResponse.ok) {
+        throw new Error(`GLM API error: ${glmResponse.status}`);
+      }
+
+      const glmData = await glmResponse.json();
+      const analysis = glmData.choices?.[0]?.message?.content || '研究分析完成，未找到相关信息。';
+
+      return new Response(JSON.stringify({ 
+        success: true, 
+        result: analysis,
+        sources: contextDocs.map(doc => ({
+          title: doc.metadata?.title || '未知来源',
+          similarity: doc.similarity || doc.similarity || 0
+        })),
+        message: '深度研究完成'
+      }), {
+        headers: { 'Content-Type': 'application/json' },
+      });
+    }
+
     return new Response(JSON.stringify({ error: 'Invalid action' }), {
       status: 400,
       headers: { 'Content-Type': 'application/json' },

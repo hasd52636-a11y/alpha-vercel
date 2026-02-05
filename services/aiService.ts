@@ -5,6 +5,7 @@ import { ErrorHandler, AIError, ErrorType, offlineQueue } from "../utils/errorHa
 import { InputValidator } from "../utils/inputValidator";
 import { logger } from "../utils/logger";
 import { i18n } from "../utils/i18n";
+import { userInteractionService } from "./userInteractionService";
 
 // 智谱AI API配置
 const ZHIPU_BASE_URL = '/api/zhipu'
@@ -108,6 +109,111 @@ export interface Annotation {
   timestamp: number;
 }
 
+// ==================== 内置工具定义 ====================
+
+export interface BuiltinTool {
+  name: string;
+  description: string;
+  parameters: {
+    type: 'object';
+    properties: Record<string, any>;
+    required?: string[];
+  };
+  executor: (args: Record<string, any>) => Promise<any>;
+}
+
+export const BUILTIN_TOOLS: BuiltinTool[] = [
+  {
+    name: 'get_weather',
+    description: '获取指定城市的天气信息',
+    parameters: {
+      type: 'object',
+      properties: {
+        city: { type: 'string', description: '城市名称，如"北京"' }
+      },
+      required: ['city']
+    },
+    executor: async (args) => {
+      const city = args.city || args.location;
+      return {
+        city,
+        weather: '晴',
+        temperature: Math.floor(Math.random() * 15) + 15,
+        humidity: Math.floor(Math.random() * 40) + 40,
+        description: `${city}当前天气：晴朗，气温${Math.floor(Math.random() * 15) + 15}°C，湿度${Math.floor(Math.random() * 40) + 40}%`
+      };
+    }
+  },
+  {
+    name: 'calculate',
+    description: '执行数学计算',
+    parameters: {
+      type: 'object',
+      properties: {
+        expression: { type: 'string', description: '数学表达式，如"2+3*4"' }
+      },
+      required: ['expression']
+    },
+    executor: async (args) => {
+      try {
+        const result = Function(`"use strict"; return (${args.expression})`)();
+        return { expression: args.expression, result, success: true };
+      } catch {
+        return { expression: args.expression, result: null, success: false, error: '表达式无效' };
+      }
+    }
+  },
+  {
+    name: 'get_current_time',
+    description: '获取当前日期和时间',
+    parameters: {
+      type: 'object',
+      properties: {
+        timezone: { type: 'string', description: '时区，如"Asia/Shanghai"' }
+      }
+    },
+    executor: async (args) => {
+      const now = new Date();
+      return {
+        iso: now.toISOString(),
+        local: now.toLocaleString('zh-CN'),
+        timestamp: now.getTime(),
+        date: now.toLocaleDateString('zh-CN'),
+        time: now.toLocaleTimeString('zh-CN'),
+        timezone: args.timezone || 'Asia/Shanghai'
+      };
+    }
+  },
+  {
+    name: 'search_knowledge_base',
+    description: '在产品知识库中搜索相关信息',
+    parameters: {
+      type: 'object',
+      properties: {
+        query: { type: 'string', description: '搜索关键词' },
+        projectId: { type: 'string', description: '项目ID' }
+      },
+      required: ['query']
+    },
+    executor: async (args) => {
+      return {
+        query: args.query,
+        results: [],
+        message: '知识库搜索功能请通过主对话流程使用'
+      };
+    }
+  }
+];
+
+// 工具配置接口
+export interface ToolConfig {
+  enableFunctionCall: boolean;
+  enableWebSearch: boolean;
+  enableRetrieval: boolean;
+  enableThinking: boolean;
+  customTools?: FunctionTool[];
+}
+
 export class AIService {
   private realtimeWebSocket: WebSocket | null = null;
   private realtimeCallbacks: RealtimeCallback[] = [];
@@ -151,7 +257,106 @@ export class AIService {
     return new Promise(resolve => setTimeout(resolve, ms));
   }
 
-  // 智谱API请求 - 支持后端代理模式（兼容现有路径）
+  // ==================== 工具调用相关方法 ====================
+
+  private getBuiltinToolDefinitions(): FunctionTool[] {
+    return BUILTIN_TOOLS.map(tool => ({
+      type: 'function' as const,
+      function: {
+        name: tool.name,
+        description: tool.description,
+        parameters: tool.parameters
+      }
+    }));
+  }
+
+  private async executeBuiltinTool(name: string, args: Record<string, any>): Promise<any> {
+    const tool = BUILTIN_TOOLS.find(t => t.name === name);
+    if (!tool) {
+      return { error: `工具不存在: ${name}` };
+    }
+    try {
+      return await tool.executor(args);
+    } catch (error) {
+      return { error: error instanceof Error ? error.message : '工具执行失败' };
+    }
+  }
+
+  async handleToolCalls(
+    messages: any[],
+    toolCalls: any[],
+    options?: {
+      stream?: boolean;
+      callback?: StreamCallback;
+    }
+  ): Promise<string> {
+    const toolResults: any[] = [];
+
+    for (const toolCall of toolCalls) {
+      const callId = toolCall.id;
+      const functionName = toolCall.function?.name || toolCall.function?.mcp?.name;
+      let functionArgs = {};
+
+      try {
+        functionArgs = JSON.parse(toolCall.function?.arguments || '{}');
+      } catch {
+        functionArgs = {};
+      }
+
+      console.log(`执行工具: ${functionName}`, functionArgs);
+
+      let result;
+      if (toolCall.function?.name) {
+        result = await this.executeBuiltinTool(functionName, functionArgs);
+      } else if (toolCall.function?.mcp) {
+        result = { message: 'MCP工具调用需要服务端支持', type: 'mcp' };
+      } else {
+        result = { error: '未知的工具调用类型' };
+      }
+
+      toolResults.push({
+        role: 'tool',
+        content: JSON.stringify(result),
+        tool_call_id: callId
+      });
+    }
+
+    return '';
+  }
+
+  private buildToolsArray(toolConfig?: ToolConfig): any[] | undefined {
+    if (!toolConfig) return undefined;
+
+    const tools: any[] = [];
+
+    if (toolConfig.enableFunctionCall) {
+      tools.push(...this.getBuiltinToolDefinitions());
+    }
+
+    if (toolConfig.enableWebSearch) {
+      tools.push({
+        type: 'web_search',
+        name: 'web_search',
+        description: '搜索互联网获取最新信息'
+      });
+    }
+
+    if (toolConfig.enableRetrieval) {
+      tools.push({
+        type: 'retrieval',
+        name: 'retrieval',
+        description: '检索产品知识库'
+      });
+    }
+
+    if (toolConfig.customTools && toolConfig.customTools.length > 0) {
+      tools.push(...toolConfig.customTools);
+    }
+
+    return tools.length > 0 ? tools : undefined;
+  }
+
+  // ==================== 智谱API请求 ====================
   private async zhipuFetch(endpoint: string, body: any, isBinary: boolean = false, retryCount: number = 0) {
     const startTime = Date.now();
     
@@ -471,7 +676,8 @@ export class AIService {
     maxTokens?: number;
     tools?: FunctionTool[];
     responseFormat?: { type: 'text' | 'json_object' };
-    projectConfig?: any; // 添加项目配置参数
+    projectConfig?: any;
+    toolConfig?: ToolConfig;
   }) {
     // 验证输入参数
     const validation = InputValidator.validateTextInput(prompt);
@@ -567,18 +773,47 @@ export class AIService {
           source: 'product'
         }));
       
-      // 5. 构建上下文
-      const context = relevantItems.length > 0 
-        ? relevantItems.map((item, index) => {
-            const sourceLabel = item.source === 'product' ? '产品知识库' : '通用知识库';
-            return `[${sourceLabel} ${index + 1}: ${item.title}]\n${item.content}`;
-          }).join('\n\n')
-        : "No direct match in knowledge base. When no relevant information is found, you must clearly state that you don't have specific information about the topic and suggest contacting human customer service.";
+      // 5. 获取优质交互模板
+      const qualityTemplates = this.getQualityInteractionTemplates(prompt);
+      
+      // 6. 构建上下文
+      let context = '';
+      
+      // 添加产品知识库内容
+      if (relevantItems.length > 0) {
+        context += "【产品知识库】\n";
+        context += relevantItems.map((item, index) => {
+          const sourceLabel = item.source === 'product' ? '产品知识库' : '通用知识库';
+          return `[${sourceLabel} ${index + 1}: ${item.title}]\n${item.content}`;
+        }).join('\n\n');
+        context += '\n\n';
+      } else {
+        context += "【产品知识库】\nNo direct match in knowledge base. When no relevant information is found, you must clearly state that you don't have specific information about the topic and suggest contacting human customer service.\n\n";
+      }
+      
+      // 添加优质交互模板
+      if (qualityTemplates.length > 0) {
+        context += "【优质回答模板】\n";
+        context += qualityTemplates.map((template, index) => {
+          return `[模板 ${index + 1}]\n用户问题: ${template.userMessage}\n优质回答: ${template.aiResponse}`;
+        }).join('\n\n');
+        context += '\n\n';
+      }
 
       const fullPrompt = `You are a product support AI specialized in providing accurate answers based on the provided knowledge base.\n\nIMPORTANT GUIDELINES:\n1. **Strictly use only the information provided in the context** for your answers
 2. **Prioritize product-specific knowledge** over general knowledge when both are available
 3. **Cite the source** of your information by referencing the knowledge item number and source
-4. **If no relevant information is found**, clearly state that you don't have specific information about the topic\n5. **Be concise and direct** in your responses\n6. **Maintain a professional and helpful tone**\n\nContext:\n${context}\n\nUser Question: ${prompt}`;
+4. **If no relevant information is found**, clearly state that you don't have specific information about the topic\n5. **Be concise and direct** in your responses
+6. **Maintain a professional and helpful tone**
+7. **Use quality interaction templates as reference** for answer structure, tone, and style, but do not copy them directly
+8. **Combine product knowledge with template style** to create natural, helpful responses
+9. **Treat quality interaction templates as excellent case studies** for similar situations
+10. **Organize your answer based on the structure and style of the excellent case studies**
+11. **STRICTLY PROHIBITED: Do not include any user identity information** in your final answer, even if it is provided in the context
+12. **User information is for AI reference only** - AI may use it to understand context but must not include it in the response
+13. **ABSOLUTELY FORBIDDEN: No user-specific details** can appear in the final answer, including but not limited to phone model, region, or personal identifiers
+14. **Focus exclusively on product information and solutions** - keep all content centered on the product and its usage
+\nContext:\n${context}\n\nUser Question: ${prompt}`;
 
       // 仅使用智谱AI实现，启用智能路由
       const optimalModel = this.getOptimalModel(prompt, options);
@@ -599,16 +834,26 @@ export class AIService {
         ];
       }
       
-      const requestBody = {
+      const requestBody: any = {
         model: optimalModel,
         messages: messages,
         temperature: options?.temperature || 0.1,
         max_tokens: options?.maxTokens || 1024,
         stream: options?.stream || false,
-        tools: options?.tools,
         response_format: options?.responseFormat,
-        projectId: options?.projectConfig?.id || 'default' // 添加项目ID用于后端代理
+        projectId: options?.projectConfig?.id || 'default'
       };
+
+      const toolConfig = options?.toolConfig as ToolConfig | undefined;
+      const tools = this.buildToolsArray(toolConfig);
+      if (tools) {
+        requestBody.tools = tools;
+        requestBody.tool_choice = 'auto';
+      }
+
+      if (toolConfig?.enableThinking) {
+        requestBody.thinking = { type: 'enabled' };
+      }
 
       let result;
       if (options?.stream && options?.callback) {
@@ -616,12 +861,41 @@ export class AIService {
         result = '';
       } else {
         const data = await this.zhipuFetch('/chat/completions', requestBody);
-        result = data.choices[0].message.content;
+        
+        const toolCalls = data.choices?.[0]?.message?.tool_calls;
+        if (toolCalls && toolCalls.length > 0) {
+          console.log('检测到工具调用:', toolCalls);
+          
+          const toolResults = await Promise.all(toolCalls.map(async (tc: any) => {
+            const args = JSON.parse(tc.function?.arguments || '{}');
+            const result = await this.executeBuiltinTool(tc.function?.name, args);
+            return {
+              role: 'tool',
+              content: JSON.stringify(result),
+              tool_call_id: tc.id
+            };
+          }));
+          
+          const continuationMessages = [...messages, data.choices[0].message, ...toolResults];
+
+          const continuationRequest = {
+            ...requestBody,
+            messages: continuationMessages,
+            tools: undefined,
+            tool_choice: undefined,
+            thinking: undefined
+          };
+
+          const continuationData = await this.zhipuFetch('/chat/completions', continuationRequest);
+          result = continuationData.choices?.[0]?.message?.content || '';
+        } else {
+          result = data.choices?.[0]?.message?.content || '';
+        }
       }
       
       // 缓存结果（只缓存非流式响应的结果）
       if (!options?.stream) {
-        globalCache.set(cacheKey, result, 30 * 60 * 1000); // 缓存30分钟
+        globalCache.set(cacheKey, result, 30 * 60 * 1000);
       }
       
       return result;
@@ -688,17 +962,48 @@ export class AIService {
             const combinedKnowledge = knowledge;
             
             const relevantItems = this.retrieveRelevantKnowledge(prompt, combinedKnowledge);
-            const context = relevantItems.length > 0 
-              ? relevantItems.map((item, index) => {
-                  const sourceLabel = '产品知识库';
-                  return `[${sourceLabel} ${index + 1}: ${item.title}]\n${item.content}`;
-                }).join('\n\n')
-              : "No direct match in knowledge base. When no relevant information is found, you must clearly state that you don't have specific information about the topic and suggest contacting human customer service.";
+            
+            // 获取优质交互模板
+            const qualityTemplates = this.getQualityInteractionTemplates(prompt);
+            
+            // 构建上下文
+            let context = '';
+            
+            // 添加产品知识库内容
+            if (relevantItems.length > 0) {
+              context += "【产品知识库】\n";
+              context += relevantItems.map((item, index) => {
+                const sourceLabel = '产品知识库';
+                return `[${sourceLabel} ${index + 1}: ${item.title}]\n${item.content}`;
+              }).join('\n\n');
+              context += '\n\n';
+            } else {
+              context += "【产品知识库】\nNo direct match in knowledge base. When no relevant information is found, you must clearly state that you don't have specific information about the topic and suggest contacting human customer service.\n\n";
+            }
+            
+            // 添加优质交互模板
+            if (qualityTemplates.length > 0) {
+              context += "【优质回答模板】\n";
+              context += qualityTemplates.map((template, index) => {
+                return `[模板 ${index + 1}]\n用户问题: ${template.userMessage}\n优质回答: ${template.aiResponse}`;
+              }).join('\n\n');
+              context += '\n\n';
+            }
 
             const fullPrompt = `You are a product support AI specialized in providing accurate answers based on the provided knowledge base.\n\nIMPORTANT GUIDELINES:\n1. **Strictly use only the information provided in the context** for your answers
 2. **Prioritize product-specific knowledge** over general knowledge when both are available
 3. **Cite the source** of your information by referencing the knowledge item number and source
-4. **If no relevant information is found**, clearly state that you don't have specific information about the topic\n5. **Be concise and direct** in your responses\n6. **Maintain a professional and helpful tone**\n\nContext:\n${context}\n\nUser Question: ${prompt}`;
+4. **If no relevant information is found**, clearly state that you don't have specific information about the topic\n5. **Be concise and direct** in your responses
+6. **Maintain a professional and helpful tone**
+7. **Use quality interaction templates as reference** for answer structure, tone, and style, but do not copy them directly
+8. **Combine product knowledge with template style** to create natural, helpful responses
+9. **Treat quality interaction templates as excellent case studies** for similar situations
+10. **Organize your answer based on the structure and style of the excellent case studies**
+11. **STRICTLY PROHIBITED: Do not include any user identity information** in your final answer, even if it is provided in the context
+12. **User information is for AI reference only** - AI may use it to understand context but must not include it in the response
+13. **ABSOLUTELY FORBIDDEN: No user-specific details** can appear in the final answer, including but not limited to phone model, region, or personal identifiers
+14. **Focus exclusively on product information and solutions** - keep all content centered on the product and its usage
+\nContext:\n${context}\n\nUser Question: ${prompt}`;
 
             const optimalModel = this.getOptimalModel(prompt, options);
             
@@ -808,6 +1113,48 @@ export class AIService {
     }
 
     return this.generateMockSpeechRecognition();
+  }
+
+  // 获取优质交互模板
+  private getQualityInteractionTemplates(prompt: string, limit: number = 3): Array<{ userMessage: string; aiResponse: string; score: number }> {
+    const interactions = userInteractionService.getInteractions();
+    
+    // 计算每个交互与当前问题的相似度
+    const scoredInteractions = interactions.map(interaction => {
+      let score = 0;
+      
+      // 基于满意度评分
+      if (interaction.satisfaction) {
+        score += interaction.satisfaction * 0.5;
+      }
+      
+      // 基于问题相似度（简单的文本匹配）
+      const promptLower = prompt.toLowerCase();
+      const messageLower = interaction.userMessage.toLowerCase();
+      
+      if (messageLower.includes(promptLower)) {
+        score += 5;
+      }
+      
+      // 基于关键词匹配
+      const promptWords = promptLower.split(/\s+/).filter(word => word.length > 1);
+      const messageWords = messageLower.split(/\s+/).filter(word => word.length > 1);
+      
+      const commonWords = promptWords.filter(word => messageWords.includes(word));
+      score += commonWords.length * 1.5;
+      
+      return {
+        userMessage: interaction.userMessage,
+        aiResponse: interaction.aiResponse,
+        score
+      };
+    });
+    
+    // 排序并返回前N个优质模板
+    return scoredInteractions
+      .filter(item => item.score > 3) // 过滤掉低质量的模板
+      .sort((a, b) => b.score - a.score)
+      .slice(0, limit);
   }
 
   // 测试智谱API连接
@@ -1616,7 +1963,9 @@ ${companyName}技术支持：
       }
     }
     
-    // 从URL参数获取（扫码页面应急方案）
+    // 从URL参数获取（已移除 - 存在安全风险）
+    // API密钥不应通过URL参数传递，以避免泄露风险
+    /*
     if (typeof window !== 'undefined' && window.location) {
       const urlParams = new URLSearchParams(window.location.search);
       const apiKeyParam = urlParams.get('api_key');
@@ -1628,6 +1977,7 @@ ${companyName}技术支持：
         return apiKeyParam;
       }
     }
+    */
     
     return '';
   }

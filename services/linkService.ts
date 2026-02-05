@@ -384,9 +384,9 @@ export class LinkService {
   // 获取当前活跃链接数量
   private getActiveLinksCount(): number {
     let count = 0;
-    for (const state of this.linkStates.values()) {
-      if (this.isLinkActive(state as any)) {
-        count++;
+    for (const [shortCode, state] of this.linkStates.entries()) {
+      if (this.isLinkActive(shortCode)) {
+        count++; 
       }
     }
     return count;

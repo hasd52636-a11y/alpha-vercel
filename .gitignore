@@ -136,3 +136,10 @@ dist
 .yarn/build-state.yml
 .yarn/install-state.gz
 .pnp.*
+
+# Trae IDE files
+.trae/
+
+# Windows special files
+nul
+NUL

@@ -9,16 +9,17 @@ export default defineConfig(({ mode }) => {
         port: 3003,
         host: '0.0.0.0',
         proxy: {
-          '/api': {
-            target: 'http://localhost:3002',
-            changeOrigin: true,
-            secure: false,
-            configure: (proxy, options) => {
-              proxy.on('error', (err, req, res) => {
-                // Proxy error handling
-              });
-            },
-          }
+          // 移除API代理，让Vite直接处理API端点
+          // '/api': {
+          //   target: 'http://localhost:3006',
+          //   changeOrigin: true,
+          //   secure: false,
+          //   configure: (proxy, options) => {
+          //     proxy.on('error', (err, req, res) => {
+          //       // Proxy error handling
+          //     });
+          //   },
+          // }
         }
       },
       build: {

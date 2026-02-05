@@ -118,9 +118,19 @@ module.exports = async (req, res) => {
 
     const response = await axios(axiosConfig);
 
-    // 设置CORS头
-    res.setHeader('Access-Control-Allow-Origin', '*');
-    res.setHeader('Access-Control-Allow-Headers', '*');
+    // 设置CORS头 - 限制为可信来源
+    const allowedOrigins = [
+      'https://sora.wboke.com',
+      'http://localhost:3003',
+      'http://localhost:3000',
+      'http://127.0.0.1:3003',
+      'http://127.0.0.1:3000'
+    ];
+    const origin = req.headers.origin;
+    if (allowedOrigins.includes(origin)) {
+      res.setHeader('Access-Control-Allow-Origin', origin);
+    }
+    res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
 
     // 处理流式或非流式响应
     if (req.body?.stream && response.headers['content-type']?.includes('text/event-stream')) {
@@ -134,9 +144,19 @@ module.exports = async (req, res) => {
     console.error('Error message:', error.message);
     console.error('Error stack:', error.stack);
     
-    // 设置CORS头
-    res.setHeader('Access-Control-Allow-Origin', '*');
-    res.setHeader('Access-Control-Allow-Headers', '*');
+    // 设置CORS头 - 限制为可信来源
+    const allowedOrigins = [
+      'https://sora.wboke.com',
+      'http://localhost:3003',
+      'http://localhost:3000',
+      'http://127.0.0.1:3003',
+      'http://127.0.0.1:3000'
+    ];
+    const origin = req.headers.origin;
+    if (allowedOrigins.includes(origin)) {
+      res.setHeader('Access-Control-Allow-Origin', origin);
+    }
+    res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
     
     let errorResponse = {
       error: {

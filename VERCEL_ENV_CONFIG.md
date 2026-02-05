@@ -1,9 +1,0 @@
-# Vercel 环境变量配置
-# 在 Vercel Dashboard → Settings → Environment Variables 中添加以下变量：
-
-# 生产环境变量（重要：这些必须添加到 Vercel）
-ZHIPU_API_KEY=95e635b202714947a903104808ab6643.DmxvLwF1hQXYHYdi
-VITE_ZHIPU_API_KEY=95e635b202714947a903104808ab6643.DmxvLwF1hQXYHYdi
-SUPABASE_URL=https://vfefgzdrrcdxtvflfllylh.supabase.co
-SUPABASE_KEY=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InZmZWZnemRycmNkeHR2ZmZmbGx5bGgiLCJyb2xlIjoiYW5vbiIsImlhdCI6MTczMDAwMDAwMCwiZXhwIjoyMDQ1NTc2MDAwfQ.4mFBxlOhkUGBr_WMjiCT3Q_uQHzGyPW
-SUPABASE_JWT_SECRET=5307aed6-b6f4-4b95-b390-9b207702a3fa

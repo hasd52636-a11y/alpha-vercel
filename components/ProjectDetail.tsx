@@ -6,7 +6,8 @@ import {
   ShieldCheck, Video, Globe, Sparkles, Download, 
   ExternalLink, Upload, FileUp, X, CheckCircle, Check, Volume2,
   Camera, MessageSquare, Phone, Palette, Type, Image as ImageIcon,
-  Smile, Settings, Monitor, Paintbrush
+  Smile, Settings, Monitor, Paintbrush, Brain, Database, 
+  Search, RefreshCw, Loader2, Zap
 } from 'lucide-react';
 import { aiService } from '../services/aiService';
 import { linkService } from '../services/linkService';
@@ -40,6 +41,16 @@ const ProjectDetail: React.FC<ProjectDetailProps> = ({ projects, onUpdate }) => 
 
   // 个性化设置状态
   const [customizationPreview, setCustomizationPreview] = useState(false);
+
+  // 知识库搜索状态
+  const [searchQuery, setSearchQuery] = useState('');
+  const [searchResults, setSearchResults] = useState<any[]>([]);
+  const [isSearching, setIsSearching] = useState(false);
+
+  // Deep Research状态
+  const [deepResearchQuery, setDeepResearchQuery] = useState('');
+  const [deepResearchResult, setDeepResearchResult] = useState('');
+  const [isDeepResearching, setIsDeepResearching] = useState(false);
 
   // 默认UI自定义配置
   const getDefaultUICustomization = () => ({
@@ -284,6 +295,69 @@ const ProjectDetail: React.FC<ProjectDetailProps> = ({ projects, onUpdate }) => 
     }
   };
 
+  // 知识库搜索
+  const handleKnowledgeSearch = async () => {
+    if (!searchQuery.trim() || !localProject) return;
+
+    setIsSearching(true);
+    setSearchResults([]);
+
+    try {
+      const apiKey = localStorage.getItem('zhipuApiKey') || '';
+      const response = await fetch('/api/knowledge', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: 'search',
+          query: searchQuery,
+          projectId: localProject.id,
+          apiKey: apiKey
+        })
+      });
+
+      const result = await response.json();
+      setSearchResults(result.results || []);
+    } catch (error) {
+      console.error('搜索失败:', error);
+    } finally {
+      setIsSearching(false);
+    }
+  };
+
+  // Deep Research
+  const handleDeepResearch = async () => {
+    if (!deepResearchQuery.trim() || !localProject) return;
+
+    setIsDeepResearching(true);
+    setDeepResearchResult('');
+
+    try {
+      const apiKey = localStorage.getItem('zhipuApiKey') || '';
+      const response = await fetch('/api/knowledge', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: 'deep_research',
+          query: deepResearchQuery,
+          projectId: localProject.id,
+          apiKey: apiKey
+        })
+      });
+
+      const result = await response.json();
+      if (result.result) {
+        setDeepResearchResult(result.result);
+      } else if (result.error) {
+        setDeepResearchResult(`研究失败: ${result.error}`);
+      }
+    } catch (error) {
+      console.error('深度研究失败:', error);
+      setDeepResearchResult('深度研究失败，请稍后重试');
+    } finally {
+      setIsDeepResearching(false);
+    }
+  };
+
   const handleManualVideoUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -503,6 +577,143 @@ const ProjectDetail: React.FC<ProjectDetailProps> = ({ projects, onUpdate }) => 
         <div className="lg:col-span-2">
           {activeTab === 'knowledge' && (
             <div className="space-y-8">
+              {/* 统计信息卡片 */}
+              <div className="grid grid-cols-3 gap-4">
+                <div className="glass-card p-6 rounded-[2rem] border border-violet-500/20 bg-violet-500/5">
+                  <div className="flex items-center gap-3">
+                    <div className="p-3 bg-violet-500/20 rounded-xl">
+                      <FileText className="text-violet-500" size={24} />
+                    </div>
+                    <div>
+                      <p className="text-2xl font-bold text-slate-800">{localProject.knowledgeBase.length}</p>
+                      <p className="text-xs text-slate-500">文档总数</p>
+                    </div>
+                  </div>
+                </div>
+                <div className="glass-card p-6 rounded-[2rem] border border-emerald-500/20 bg-emerald-500/5">
+                  <div className="flex items-center gap-3">
+                    <div className="p-3 bg-emerald-500/20 rounded-xl">
+                      <Brain className="text-emerald-500" size={24} />
+                    </div>
+                    <div>
+                      <p className="text-2xl font-bold text-slate-800">
+                        {localProject.knowledgeBase.filter(k => k.vectorized).length}
+                      </p>
+                      <p className="text-xs text-slate-500">已向量化</p>
+                    </div>
+                  </div>
+                </div>
+                <div className="glass-card p-6 rounded-[2rem] border border-amber-500/20 bg-amber-500/5">
+                  <div className="flex items-center gap-3">
+                    <div className="p-3 bg-amber-500/20 rounded-xl">
+                      <Database className="text-amber-500" size={24} />
+                    </div>
+                    <div>
+                      <p className="text-2xl font-bold text-slate-800">
+                        {Math.round(localProject.knowledgeBase.reduce((acc, k) => acc + (k.content?.length || 0) / 1000, 0))}K
+                      </p>
+                      <p className="text-xs text-slate-500">字符数</p>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* 手动搜索区域 */}
+              <div className="glass-card p-8 rounded-[3rem] border border-slate-200">
+                <h4 className="font-bold text-slate-800 mb-4 flex items-center gap-2">
+                  <Search size={20} className="text-violet-500" />
+                  知识库检索
+                </h4>
+                <div className="flex gap-3">
+                  <input
+                    type="text"
+                    placeholder="输入关键词搜索知识库..."
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                    onKeyDown={(e) => e.key === 'Enter' && handleKnowledgeSearch()}
+                    className="flex-1 px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:border-violet-500"
+                  />
+                  <button
+                    onClick={handleKnowledgeSearch}
+                    disabled={!searchQuery.trim()}
+                    className="px-6 py-3 bg-violet-500 text-white rounded-xl hover:bg-violet-600 disabled:opacity-50"
+                  >
+                    搜索
+                  </button>
+                </div>
+
+                {/* 搜索结果 */}
+                {searchResults.length > 0 && (
+                  <div className="mt-6 space-y-3">
+                    <p className="text-xs text-slate-500 mb-3">
+                      找到 {searchResults.length} 条相关内容（相似度: {searchResults[0]?.score?.toFixed(2) || 0}）
+                    </p>
+                    {searchResults.map((result) => (
+                      <div key={result.id} className="p-4 bg-violet-50 rounded-xl border border-violet-200">
+                        <div className="flex items-start justify-between gap-4">
+                          <div className="flex-1">
+                            <p className="font-medium text-slate-800">{result.metadata?.title || '未知文档'}</p>
+                            <p className="text-sm text-slate-600 mt-1 line-clamp-2">{result.content}</p>
+                            <p className="text-xs text-violet-500 mt-2">相似度: {(result.score * 100).toFixed(1)}%</p>
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              {/* Deep Research 功能 */}
+              <div className="glass-card p-8 rounded-[3rem] border border-amber-200 bg-amber-50/50">
+                <div className="flex items-start gap-4">
+                  <div className="p-3 bg-amber-100 rounded-xl">
+                    <Brain className="text-amber-600" size={28} />
+                  </div>
+                  <div className="flex-1">
+                    <h4 className="font-bold text-slate-800 flex items-center gap-2">
+                      深度研究
+                      <span className="px-2 py-0.5 bg-amber-200 text-amber-700 text-xs rounded-full">高级</span>
+                    </h4>
+                    <p className="text-sm text-slate-600 mt-1">
+                      针对复杂问题进行深度分析，自动搜索多个信息源，综合生成回答。
+                    </p>
+                    <div className="flex gap-3 mt-4">
+                      <input
+                        type="text"
+                        placeholder="输入复杂研究问题..."
+                        value={deepResearchQuery}
+                        onChange={(e) => setDeepResearchQuery(e.target.value)}
+                        onKeyDown={(e) => e.key === 'Enter' && handleDeepResearch()}
+                        className="flex-1 px-4 py-2 bg-white border border-amber-200 rounded-xl focus:outline-none focus:border-amber-400"
+                      />
+                      <button
+                        onClick={handleDeepResearch}
+                        disabled={!deepResearchQuery.trim() || isDeepResearching}
+                        className="px-4 py-2 bg-amber-500 text-white rounded-xl hover:bg-amber-600 disabled:opacity-50 flex items-center gap-2"
+                      >
+                        {isDeepResearching ? (
+                          <>
+                            <Loader2 className="animate-spin" size={16} />
+                            分析中...
+                          </>
+                        ) : (
+                          <>
+                            <Zap size={16} />
+                            开始研究
+                          </>
+                        )}
+                      </button>
+                    </div>
+                    {deepResearchResult && (
+                      <div className="mt-4 p-4 bg-white rounded-xl border border-amber-200">
+                        <p className="text-sm text-slate-700 whitespace-pre-wrap">{deepResearchResult}</p>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </div>
+
+              {/* 上传区域 */}
               <div 
                 onClick={() => fileInputRef.current?.click()}
                 className="group border-2 border-dashed border-slate-200 hover:border-violet-500/50 bg-slate-100 p-12 rounded-[3rem] transition-all cursor-pointer flex flex-col items-center justify-center text-center gap-4"
@@ -517,34 +728,62 @@ const ProjectDetail: React.FC<ProjectDetailProps> = ({ projects, onUpdate }) => 
                 <input type="file" multiple ref={fileInputRef} onChange={handleFileUpload} className="hidden" />
               </div>
 
-              <div className="grid gap-6">
-                {localProject.knowledgeBase.map((item) => (
-                  <div key={item.id} className="glass-card p-6 rounded-[2rem] border border-slate-200 group">
-                    <div className="flex items-center gap-4">
-                      <div className="p-3 bg-slate-100 text-slate-600 rounded-xl">
-                        {item.type === KnowledgeType.PDF ? <FileText size={24} className="text-amber-500"/> : <FileText size={24}/>}
-                      </div>
-                      <div className="flex-1">
-                        <input 
-                          className="bg-transparent border-none outline-none font-bold text-slate-800 w-full"
-                          value={item.title}
-                          onChange={(e) => setLocalProject({...localProject, knowledgeBase: localProject.knowledgeBase.map(i => i.id === item.id ? {...i, title: e.target.value} : i)})}
-                        />
-                        <p className="text-[10px] text-slate-500 font-bold uppercase tracking-widest mt-1">{item.type} • {item.fileSize || 'Manual'}</p>
-                      </div>
-                      <button 
-                        onClick={() => handleRevectorize(item)}
-                        className="p-2 text-slate-500 hover:text-violet-500 transition-colors"
-                        title="重新向量化"
-                      >
-                        <Sparkles size={18} />
-                      </button>
-                      <button onClick={() => setLocalProject({...localProject, knowledgeBase: localProject.knowledgeBase.filter(i => i.id !== item.id)})} className="p-2 text-slate-500 hover:text-pink-500 transition-colors">
-                        <Trash2 size={18} />
-                      </button>
-                    </div>
+              {/* 文档列表 */}
+              <div className="grid gap-4">
+                <h4 className="font-bold text-slate-800 flex items-center gap-2">
+                  <Database size={20} className="text-slate-400" />
+                  知识库文档 ({localProject.knowledgeBase.length})
+                </h4>
+                {localProject.knowledgeBase.length === 0 ? (
+                  <div className="text-center py-12 text-slate-500 bg-slate-50 rounded-2xl">
+                    <Database size={48} className="mx-auto mb-4 opacity-30" />
+                    <p>暂无文档，上传文档开始构建知识库</p>
                   </div>
-                ))}
+                ) : (
+                  localProject.knowledgeBase.map((item) => (
+                    <div key={item.id} className="glass-card p-6 rounded-[2rem] border border-slate-200 group">
+                      <div className="flex items-center gap-4">
+                        <div className="p-3 bg-slate-100 text-slate-600 rounded-xl">
+                          {item.vectorized ? (
+                            <Brain size={24} className="text-emerald-500" />
+                          ) : (
+                            <FileText size={24} className="text-amber-500" />
+                          )}
+                        </div>
+                        <div className="flex-1">
+                          <input 
+                            className="bg-transparent border-none outline-none font-bold text-slate-800 w-full"
+                            value={item.title}
+                            onChange={(e) => setLocalProject({...localProject, knowledgeBase: localProject.knowledgeBase.map(i => i.id === item.id ? {...i, title: e.target.value} : i)})}
+                          />
+                          <p className="text-[10px] text-slate-500 font-bold uppercase tracking-widest mt-1">
+                            {item.type} • {item.fileSize || 'Manual'} • {item.content?.length || 0}字符
+                            {item.vectorized && <span className="ml-2 text-emerald-500">✓ 已向量化</span>}
+                          </p>
+                        </div>
+                        <button 
+                          onClick={() => handleRevectorize(item)}
+                          className="p-2 text-slate-500 hover:text-violet-500 transition-colors"
+                          title="重新向量化"
+                        >
+                          <RefreshCw size={18} />
+                        </button>
+                        <button 
+                          onClick={() => {
+                            if (confirm('确定删除此文档？')) {
+                              setLocalProject({...localProject, knowledgeBase: localProject.knowledgeBase.filter(i => i.id !== item.id)});
+                              onUpdate({...localProject, knowledgeBase: localProject.knowledgeBase.filter(i => i.id !== item.id)});
+                            }
+                          }} 
+                          className="p-2 text-slate-500 hover:text-pink-500 transition-colors"
+                          title="删除文档"
+                        >
+                          <Trash2 size={18} />
+                        </button>
+                      </div>
+                    </div>
+                  ))
+                )}
               </div>
             </div>
           )}
@@ -688,9 +927,20 @@ const ProjectDetail: React.FC<ProjectDetailProps> = ({ projects, onUpdate }) => 
                                 ...localProject.config,
                                 visionEnabled: e.target.checked
                               }
-                            };
-                            autoSave(updatedProject);
-                          }}
+                          };
+                          autoSave(updatedProject);
+                          
+                          // 同时保存到 localStorage，确保用户页面即时生效
+                          if (localProject?.id) {
+                            localStorage.setItem(`project_${localProject.id}_theme`, JSON.stringify({
+                              selectedTheme: template.id,
+                              primaryColor: template.colors[0],
+                              backgroundColor: template.colors[1],
+                              textColor: template.colors[2],
+                              updatedAt: new Date().toISOString()
+                            }));
+                          }
+                        }}
                         />
                         <div className="w-10 h-5 bg-slate-200 peer-focus:outline-none peer-focus:ring-2 peer-focus:ring-blue-500/50 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-blue-500"></div>
                       </label>
@@ -766,15 +1016,15 @@ const ProjectDetail: React.FC<ProjectDetailProps> = ({ projects, onUpdate }) => 
                 <div className="grid grid-cols-5 gap-6">
                   {[
                     { id: 'modern', name: '现代简约', icon: '✨', colors: ['#3b82f6', '#ffffff', '#f1f5f9'] },
-                    { id: 'dark', name: '深色主题', icon: '🌙', colors: ['#8b5cf6', '#1e293b', '#f1f5f9'] },
-                    { id: 'vibrant', name: '活力彩色', icon: '⚡', colors: ['#f59e0b', '#ffffff', '#92400e'] },
-                    { id: 'scifi', name: '科幻未来', icon: '🚀', colors: ['#00ffff', '#1a0033', '#00ffff'] },
-                    { id: 'crystal', name: '水晶透明', icon: '💎', colors: ['#0ea5e9', '#ffffff', '#0c4a6e'] },
+                    { id: 'dark', name: '深色主题', icon: '🌙', colors: ['#8b5cf6', '#1e293b', '#f8fafc'] },
+                    { id: 'vibrant', name: '活力彩色', icon: '⚡', colors: ['#f59e0b', '#fef3c7', '#78350f'] },
+                    { id: 'scifi', name: '科幻未来', icon: '🚀', colors: ['#22d3ee', '#0f172a', '#f0f9ff'] },
+                    { id: 'crystal', name: '水晶透明', icon: '💎', colors: ['#0ea5e9', '#f0f9ff', '#0c4a6e'] },
                     { id: 'festive', name: '喜庆红火', icon: '🧧', colors: ['#dc2626', '#fef2f2', '#7f1d1d'] },
-                    { id: 'ocean', name: '海滨度假', icon: '🏖️', colors: ['#0891b2', '#ffffff', '#164e63'] },
-                    { id: 'vangogh', name: '梵高印象', icon: '🎨', colors: ['#fbbf24', '#1e3a8a', '#fbbf24'] },
+                    { id: 'ocean', name: '海滨度假', icon: '🏖️', colors: ['#0891b2', '#ecfeff', '#164e63'] },
+                    { id: 'vangogh', name: '梵高印象', icon: '🎨', colors: ['#fbbf24', '#fef9c3', '#854d0e'] },
                     { id: 'dream', name: '梦境幻想', icon: '🌙', colors: ['#a855f7', '#fdf4ff', '#581c87'] },
-                    { id: 'anime', name: '二次元', icon: '🌸', colors: ['#ec4899', '#fef7ff', '#831843'] }
+                    { id: 'anime', name: '二次元', icon: '🌸', colors: ['#ec4899', '#fdf2f8', '#831843'] }
                   ].map((template) => {
                     // 检查当前模板是否被选中
                     const isSelected = localProject.config.uiCustomization?.selectedTheme === template.id;
@@ -840,9 +1090,14 @@ const ProjectDetail: React.FC<ProjectDetailProps> = ({ projects, onUpdate }) => 
                         {/* 状态显示 */}
                         <div className="text-center">
                           {isSelected ? (
-                            <div className="flex items-center justify-center gap-2 text-purple-600">
-                              <Check size={16} />
-                              <span className="text-xs font-medium">已选中</span>
+                            <div className="flex flex-col items-center gap-2">
+                              <div className="flex items-center gap-2 text-purple-600">
+                                <Check size={16} />
+                                <span className="text-xs font-medium">已选中</span>
+                              </div>
+                              <span className="text-[10px] text-amber-500 bg-amber-50 px-2 py-1 rounded">
+                                刷新用户页面查看效果
+                              </span>
                             </div>
                           ) : (
                             <button className="text-xs font-medium text-purple-600 hover:text-purple-700 px-4 py-2 bg-purple-50 rounded-lg hover:bg-purple-100 transition-colors">

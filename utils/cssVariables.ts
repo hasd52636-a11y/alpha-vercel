@@ -6,6 +6,99 @@
 import { UICustomization } from '../types';
 
 /**
+ * 计算颜色的相对亮度 (WCAG 2.0)
+ */
+const getRelativeLuminance = (hexColor: string): number => {
+  const rgb = hexToRgb(hexColor);
+  if (!rgb) return 0.5;
+  
+  const [r, g, b] = [rgb.r, rgb.g, rgb.b].map(v => {
+    v /= 255;
+    return v <= 0.03928 ? v / 12.92 : Math.pow((v + 0.055) / 1.055, 2.4);
+  });
+  
+  return 0.2126 * r + 0.7152 * g + 0.0722 * b;
+};
+
+/**
+ * 计算两个颜色的对比度
+ */
+const getContrastRatio = (color1: string, color2: string): number => {
+  const l1 = getRelativeLuminance(color1);
+  const l2 = getRelativeLuminance(color2);
+  const lighter = Math.max(l1, l2);
+  const darker = Math.min(l1, l2);
+  return (lighter + 0.05) / (darker + 0.05);
+};
+
+/**
+ * 将十六进制颜色转换为 RGB
+ */
+const hexToRgb = (hex: string): { r: number; g: number; b: number } | null => {
+  const result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex);
+  return result ? {
+    r: parseInt(result[1], 16),
+    g: parseInt(result[2], 16),
+    b: parseInt(result[3], 16)
+  } : null;
+};
+
+/**
+ * 调整颜色亮度以达到最小对比度
+ */
+const adjustColorForContrast = (foreground: string, background: string, minRatio: number = 4.5): string => {
+  let contrast = getContrastRatio(foreground, background);
+  let adjustedColor = foreground;
+  
+  if (contrast >= minRatio) {
+    return foreground;
+  }
+  
+  const bgRgb = hexToRgb(background);
+  if (!bgRgb) return foreground;
+  
+  const fgRgb = hexToRgb(foreground);
+  if (!fgRgb) return foreground;
+  
+  const isBgLight = getRelativeLuminance(background) > 0.5;
+  
+  let factor = 0.1;
+  for (let i = 0; i < 10 && contrast < minRatio; i++) {
+    const adjusted = isBgLight 
+      ? { r: Math.max(0, fgRgb.r - factor * 255), g: Math.max(0, fgRgb.g - factor * 255), b: Math.max(0, fgRgb.b - factor * 255) }
+      : { r: Math.min(255, fgRgb.r + factor * 255), g: Math.min(255, fgRgb.g + factor * 255), b: Math.min(255, fgRgb.b + factor * 255) };
+    
+    adjustedColor = rgbToHex(adjusted.r, adjusted.g, adjusted.b);
+    contrast = getContrastRatio(adjustedColor, background);
+    factor *= 1.5;
+  }
+  
+  return adjustedColor;
+};
+
+/**
+ * 将 RGB 转换为十六进制颜色
+ */
+const rgbToHex = (r: number, g: number, b: number): string => {
+  return '#' + [r, g, b].map(x => {
+    const hex = Math.round(Math.max(0, Math.min(255, x))).toString(16);
+    return hex.length === 1 ? '0' + hex : hex;
+  }).join('');
+};
+
+/**
+ * 确保文本颜色与背景有足够对比度
+ */
+const ensureContrast = (textColor: string, backgroundColor: string, element: string): string => {
+  const contrast = getContrastRatio(textColor, backgroundColor);
+  if (contrast < 4.5) {
+    const adjusted = adjustColorForContrast(textColor, backgroundColor, 4.5);
+    return adjusted;
+  }
+  return textColor;
+};
+
+/**
  * 将 UICustomization 转换为 CSS 变量对象
  */
 export const mapUICustomizationToCSSVariables = (uiCustomization?: UICustomization): React.CSSProperties => {
@@ -13,33 +106,57 @@ export const mapUICustomizationToCSSVariables = (uiCustomization?: UICustomizati
     return getDefaultCSSVariables();
   }
 
+  const backgroundColor = uiCustomization.backgroundColor || '#f8fafc';
+  const primaryColor = uiCustomization.primaryColor || '#f59e0b';
+  const textColor = uiCustomization.textColor || '#1e293b';
+  const aiMessageBg = uiCustomization.aiMessageBg || '#ffffff';
+  const userMessageBg = uiCustomization.userMessageBg || '#f59e0b';
+  const inputBg = uiCustomization.inputBg || '#f1f5f9';
+
+  const adjustedTextColor = ensureContrast(textColor, backgroundColor, 'text');
+  const adjustedAiMessageText = ensureContrast(
+    uiCustomization.aiMessageText || textColor, 
+    aiMessageBg, 
+    'ai-message-text'
+  );
+  const adjustedUserMessageText = ensureContrast(
+    uiCustomization.userMessageText || '#ffffff', 
+    userMessageBg, 
+    'user-message-text'
+  );
+  const adjustedInputText = ensureContrast(
+    uiCustomization.inputText || textColor, 
+    inputBg, 
+    'input-text'
+  );
+
   const cssVars: Record<string, string> = {
     // 主色调
-    '--primary-color': uiCustomization.primaryColor || '#f59e0b',
+    '--primary-color': primaryColor,
     '--secondary-color': uiCustomization.secondaryColor || '#6366f1',
-    '--text-color': uiCustomization.textColor || '#1e293b',
+    '--text-color': adjustedTextColor,
 
     // 背景设置
-    '--bg-main': uiCustomization.backgroundColor || '#f8fafc',
+    '--bg-main': backgroundColor,
     '--bg-opacity': uiCustomization.backgroundOpacity?.toString() || '1',
 
-    // 对话框样式
-    '--user-message-bg': uiCustomization.userMessageBg || '#f59e0b',
-    '--user-message-text': uiCustomization.userMessageText || '#ffffff',
-    '--ai-message-bg': uiCustomization.aiMessageBg || '#ffffff',
-    '--ai-message-text': uiCustomization.aiMessageText || '#1e293b',
+    // 对话框样式 - 确保对比度
+    '--user-message-bg': userMessageBg,
+    '--user-message-text': adjustedUserMessageText,
+    '--ai-message-bg': aiMessageBg,
+    '--ai-message-text': adjustedAiMessageText,
     '--message-border-radius': getBorderRadiusValue(uiCustomization.messageBorderRadius),
 
-    // 输入框样式
-    '--input-bg': uiCustomization.inputBg || '#f1f5f9',
+    // 输入框样式 - 确保对比度
+    '--input-bg': inputBg,
     '--input-border': uiCustomization.inputBorder || '#e2e8f0',
-    '--input-text': uiCustomization.inputText || '#1e293b',
-    '--input-placeholder': uiCustomization.inputPlaceholder || '#64748b',
+    '--input-text': adjustedInputText,
+    '--input-placeholder': uiCustomization.inputPlaceholder || adjustColorForContrast('#64748b', inputBg, 4.5),
 
     // 按钮样式
-    '--button-primary': uiCustomization.buttonPrimary || '#f59e0b',
+    '--button-primary': uiCustomization.buttonPrimary || primaryColor,
     '--button-secondary': uiCustomization.buttonSecondary || '#6b7280',
-    '--button-text': uiCustomization.buttonText || '#ffffff',
+    '--button-text': ensureContrast(uiCustomization.buttonText || '#ffffff', primaryColor, 'button-text'),
 
     // 字体设置
     '--font-family': getFontFamilyValue(uiCustomization.fontFamily, uiCustomization.customFontUrl),
@@ -47,10 +164,10 @@ export const mapUICustomizationToCSSVariables = (uiCustomization?: UICustomizati
     '--font-weight': uiCustomization.fontWeight || 'normal',
 
     // 头像设置
-    '--user-avatar-bg': uiCustomization.userAvatar?.bgColor || '#f59e0b',
-    '--user-avatar-text': uiCustomization.userAvatar?.textColor || '#ffffff',
+    '--user-avatar-bg': uiCustomization.userAvatar?.bgColor || primaryColor,
+    '--user-avatar-text': ensureContrast(uiCustomization.userAvatar?.textColor || '#ffffff', primaryColor, 'user-avatar-text'),
     '--ai-avatar-bg': uiCustomization.aiAvatar?.bgColor || '#6366f1',
-    '--ai-avatar-text': uiCustomization.aiAvatar?.textColor || '#ffffff',
+    '--ai-avatar-text': ensureContrast(uiCustomization.aiAvatar?.textColor || '#ffffff', '#6366f1', 'ai-avatar-text'),
   };
 
   // 处理背景渐变

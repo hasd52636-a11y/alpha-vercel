@@ -295,18 +295,25 @@ const ChatContainer: React.FC<Props> = ({ project, onBack }) => {
       }}
     >
       {/* 顶部导航栏 */}
-      <header className="flex items-center px-4 py-3 bg-white/80 backdrop-blur-md border-b border-slate-200 z-10 shrink-0">
+      <header 
+        className="flex items-center px-4 py-3 border-b z-10 shrink-0"
+        style={{ 
+          backgroundColor: 'var(--bg-main)',
+          borderColor: 'var(--input-border)'
+        }}
+      >
         {onBack && (
           <button 
             onClick={onBack} 
-            className="p-2 -ml-2 text-slate-600 hover:text-slate-800 transition-colors"
+            className="p-2 -ml-2 transition-colors"
+            style={{ color: 'var(--text-color)' }}
           >
             <ChevronLeft size={28} className="sm:size-6" />
           </button>
         )}
         <div className="flex-1 text-center">
-          <h1 className="font-bold text-slate-800 truncate px-4">{project.name}</h1>
-          <p className="text-xs text-slate-500">智能客服助手</p>
+          <h1 className="font-bold truncate px-4" style={{ color: 'var(--text-color)' }}>{project.name}</h1>
+          <p className="text-xs opacity-60" style={{ color: 'var(--text-color)' }}>智能客服助手</p>
         </div>
         <div className="w-10 flex justify-center">
           <div className="w-2 h-2 bg-green-400 rounded-full animate-pulse"></div>
@@ -337,11 +344,17 @@ const ChatContainer: React.FC<Props> = ({ project, onBack }) => {
             key={msg.id} 
             className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'} animate-in fade-in slide-in-from-bottom-2 duration-300`}
           >
-            <div className={`max-w-[85%] ${
-              msg.role === 'user' 
-                ? 'bg-[var(--user-message-bg)] text-[var(--user-message-text)] rounded-l-[var(--message-border-radius)] rounded-tr-[var(--message-border-radius)]' 
-                : 'bg-[var(--ai-message-bg)] text-[var(--ai-message-text)] rounded-r-[var(--message-border-radius)] rounded-tl-[var(--message-border-radius)] border border-slate-100'
-            } px-3 py-2.5 sm:px-4 sm:py-3 shadow-sm`}>
+            <div 
+              className={`max-w-[85%] ${
+                msg.role === 'user' 
+                  ? 'rounded-l-[var(--message-border-radius)] rounded-tr-[var(--message-border-radius)]' 
+                  : 'rounded-r-[var(--message-border-radius)] rounded-tl-[var(--message-border-radius)]'
+              } px-3 py-2.5 sm:px-4 sm:py-3 shadow-sm`}
+              style={{
+                backgroundColor: msg.role === 'user' ? 'var(--user-message-bg)' : 'var(--ai-message-bg)',
+                color: msg.role === 'user' ? 'var(--user-message-text)' : 'var(--ai-message-text)',
+              }}
+            >
               {msg.image && (
                 <img 
                   src={msg.image} 
@@ -357,7 +370,8 @@ const ChatContainer: React.FC<Props> = ({ project, onBack }) => {
                 <div className="flex gap-2 mt-2">
                   <button 
                     onClick={() => playTTS(msg.content)}
-                    className="flex items-center gap-1 text-xs text-slate-500 hover:text-[var(--primary-color)] transition-colors"
+                    className="flex items-center gap-1 text-xs transition-colors"
+                    style={{ color: 'var(--text-color)', opacity: 0.7 }}
                   >
                     <Volume2 size={14} className="sm:size-3" />
                     播放
@@ -389,7 +403,7 @@ const ChatContainer: React.FC<Props> = ({ project, onBack }) => {
                 <div className="w-2.5 h-2.5 sm:w-2 sm:h-2 bg-[var(--primary-color)] rounded-full animate-bounce" style={{animationDelay: '0.1s'}}></div>
                 <div className="w-2.5 h-2.5 sm:w-2 sm:h-2 bg-[var(--primary-color)] rounded-full animate-bounce" style={{animationDelay: '0.2s'}}></div>
               </div>
-              <p className="text-xs text-slate-500 mt-1">AI正在思考...</p>
+              <p className="text-xs mt-1" style={{ color: 'var(--ai-message-text)', opacity: 0.7 }}>AI正在思考...</p>
             </div>
           </div>
         )}
@@ -398,8 +412,18 @@ const ChatContainer: React.FC<Props> = ({ project, onBack }) => {
       </div>
 
       {/* 底部输入区 - 增强移动端适配 */}
-      <footer className="p-4 bg-white border-t border-slate-200 shrink-0" style={{ paddingBottom: 'max(16px, env(safe-area-inset-bottom))' }}>
-        <div className="flex items-end gap-2 bg-[var(--input-bg)] border border-[var(--input-border)] rounded-2xl px-3 py-2 focus-within:border-[var(--primary-color)] transition-colors">
+      <footer className="p-4 border-t shrink-0" style={{ 
+        paddingBottom: 'max(16px, env(safe-area-inset-bottom))',
+        backgroundColor: 'var(--bg-main)',
+        borderColor: 'var(--input-border)'
+      }}>
+        <div 
+          className="flex items-end gap-2 border rounded-2xl px-3 py-2 transition-colors"
+          style={{ 
+            backgroundColor: 'var(--input-bg)',
+            borderColor: 'var(--input-border)'
+          }}
+        >
           {/* 语音录制按钮 */}
           <button 
             onMouseDown={startVoiceRecording}
@@ -408,15 +432,19 @@ const ChatContainer: React.FC<Props> = ({ project, onBack }) => {
             onTouchEnd={stopVoiceRecording}
             className={`p-3 sm:p-2 transition-colors ${
               isVoiceRecording 
-                ? 'text-red-500 bg-red-50' 
-                : 'text-slate-400 hover:text-[var(--primary-color)]'
+                ? 'bg-red-100' 
+                : ''
             }`}
+            style={{ 
+              color: isVoiceRecording ? '#ef4444' : 'var(--input-placeholder)'
+            }}
           >
             <Mic size={24} className="sm:size-5" />
           </button>
           <button 
             onClick={() => fileInputRef.current?.click()}
-            className="p-3 sm:p-2 text-slate-400 hover:text-[var(--primary-color)] transition-colors"
+            style={{ color: 'var(--input-placeholder)' }}
+            className="p-3 sm:p-2 transition-colors hover:opacity-70"
           >
             <ImageIcon size={24} className="sm:size-5" />
           </button>
@@ -434,15 +462,23 @@ const ChatContainer: React.FC<Props> = ({ project, onBack }) => {
               }
             }}
             placeholder="输入您的问题..."
-            className="flex-1 py-3 sm:py-2 bg-transparent border-none focus:ring-0 text-base sm:text-sm text-[var(--input-text)] max-h-[120px] resize-none overflow-y-auto placeholder-slate-400"
-            style={{ minHeight: '44px' }}
+            className="flex-1 py-3 sm:py-2 bg-transparent border-none focus:ring-0 text-base sm:text-sm max-h-[120px] resize-none overflow-y-auto"
+            style={{ 
+              minHeight: '44px',
+              color: 'var(--input-text)'
+            }}
           />
 
           {/* 发送按钮 */}
           <button
             onClick={() => handleSend()}
             disabled={!input.trim() || isTyping}
-            className="p-3 sm:p-2 bg-[var(--button-primary)] text-[var(--button-text)] rounded-xl disabled:opacity-30 transition-all active:scale-95 disabled:cursor-not-allowed"
+            className="p-3 sm:p-2 rounded-xl transition-all active:scale-95 disabled:cursor-not-allowed"
+            style={{ 
+              backgroundColor: 'var(--button-primary)',
+              color: 'var(--button-text)',
+              opacity: (!input.trim() || isTyping) ? 0.3 : 1
+            }}
           >
             <Send size={20} className="sm:size-4.5" />
           </button>
@@ -451,13 +487,22 @@ const ChatContainer: React.FC<Props> = ({ project, onBack }) => {
         {/* 智能建议 */}
         {showSuggestions && suggestions.length > 0 && (
           <div className="mt-2 space-y-2">
-            <p className="text-xs text-slate-500 font-medium">快速提问：</p>
+            <p className="text-xs font-medium" style={{ color: 'var(--text-color)', opacity: 0.7 }}>快速提问：</p>
             <div className="flex flex-wrap gap-2">
               {suggestions.map((suggestion, index) => (
                 <button
                   key={index}
                   onClick={() => selectSuggestion(suggestion)}
-                  className="px-3 py-1.5 text-xs sm:text-sm bg-white border border-slate-200 rounded-full text-slate-600 hover:bg-slate-50 hover:border-slate-300 transition-colors min-h-[32px]"
+                  className="px-3 py-1.5 text-xs sm:text-sm border rounded-full transition-colors min-h-[32px]"
+                  style={{
+                    backgroundColor: 'var(--ai-message-bg)',
+                    borderColor: 'var(--input-border)',
+                    color: 'var(--ai-message-text)',
+                    ':hover': {
+                      backgroundColor: 'var(--input-bg)',
+                      borderColor: 'var(--input-border)'
+                    }
+                  }}
                 >
                   {suggestion}
                 </button>
@@ -467,7 +512,7 @@ const ChatContainer: React.FC<Props> = ({ project, onBack }) => {
         )}
 
         {/* 底部信息 */}
-        <div className="text-[10px] text-center text-slate-400 mt-2 tracking-tight">
+        <div className="text-[10px] text-center mt-2 tracking-tight" style={{ color: 'var(--text-color)', opacity: 0.5 }}>
           Powered by 中恒创世 AI 技术支持
         </div>
 
