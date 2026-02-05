@@ -38,6 +38,7 @@ import VideoChat from './components/VideoChat';
 import Settings from './components/Settings';
 import KnowledgeBase from './components/KnowledgeBase';
 import KnowledgeGraphView from './components/KnowledgeGraphView';
+import D3KnowledgeGraph from './components/D3KnowledgeGraph';
 import Diagnostics from './components/Diagnostics';
 import TicketManager from './components/TicketManager';
 import ErrorBoundary from './components/ErrorBoundary';
@@ -529,7 +530,7 @@ const App: React.FC = () => {
                     <Route path="/diagnostics" element={<Diagnostics />} />
                     {/* 商家后台专有功能 */}
                     <Route path="/knowledge" element={<KnowledgeBase />} />
-                    <Route path="/graph" element={<KnowledgeGraphView />} />
+                    <Route path="/graph" element={<D3KnowledgeGraph />} />
                   </Routes>
                 </main>
               </div>
@@ -585,7 +586,7 @@ const App: React.FC = () => {
                     <Route path="/diagnostics" element={<Diagnostics />} />
                     {/* 商家后台专有功能 */}
                     <Route path="/knowledge" element={<KnowledgeBase />} />
-                    <Route path="/graph" element={<KnowledgeGraphView />} />
+                    <Route path="/graph" element={<D3KnowledgeGraph />} />
                   </Routes>
                 </main>
               </div>

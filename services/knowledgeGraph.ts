@@ -8,6 +8,7 @@ export interface KnowledgeNode {
   title: string;
   content: string;
   type: 'text' | 'image' | 'video' | 'pdf' | 'doc';
+  source: 'company' | 'user' | 'overlap';
   tags: string[];
   relatedIds: string[];
   createdAt: Date;
