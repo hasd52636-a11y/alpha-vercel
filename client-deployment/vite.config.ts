@@ -18,10 +18,11 @@ export default defineConfig({
       ignored: ['**/node_modules/**', '**/dist/**']
     },
     proxy: {
-      // API代理配置
+      // API代理配置 - 指向部署的服务器
       '/api': {
-        target: 'http://localhost:3003',
+        target: 'https://sora2.wboke.com',
         changeOrigin: true,
+        secure: true,
         rewrite: (path) => path
       }
     }
