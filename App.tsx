@@ -387,7 +387,9 @@ const App: React.FC = () => {
       // 检查当前域名，自动设置正确的基础URL
       const currentHost = window.location.hostname;
       
-      if (currentHost === 'sora.wboke.com') {
+      if (currentHost === 'sora2.wboke.com') {
+        linkService.setBaseUrl('https://sora2.wboke.com');
+      } else if (currentHost === 'sora.wboke.com') {
         linkService.setBaseUrl('https://sora.wboke.com');
       } else if (currentHost === 'localhost' || currentHost === '127.0.0.1') {
         // 本地环境使用默认设置
@@ -518,8 +520,8 @@ const App: React.FC = () => {
 
                 <main className="p-12 pb-24">
                   <Routes>
-                    <Route path="/dashboard" element={<Dashboard projects={projects} />} />
-                    <Route path="/admin-dashboard" element={<AdminDashboard />} />
+                    <Route path="/dashboard" element={<AdminDashboard />} />
+                    <Route path="/stats" element={<Dashboard projects={projects} />} />
                     <Route path="/evaluation" element={<ManualEvaluationPanel />} />
                     <Route path="/rules" element={<CoreRuleEditor />} />
                     <Route path="/projects" element={<ProjectList projects={projects} onAdd={addProject} onToggleStatus={toggleProjectStatus} onDelete={deleteProject} />} />
@@ -574,8 +576,8 @@ const App: React.FC = () => {
 
                 <main className="p-12 pb-24">
                   <Routes>
-                    <Route path="/dashboard" element={<Dashboard projects={projects} />} />
-                    <Route path="/admin-dashboard" element={<AdminDashboard />} />
+                    <Route path="/dashboard" element={<AdminDashboard />} />
+                    <Route path="/stats" element={<Dashboard projects={projects} />} />
                     <Route path="/evaluation" element={<ManualEvaluationPanel />} />
                     <Route path="/rules" element={<CoreRuleEditor />} />
                     <Route path="/projects" element={<ProjectList projects={projects} onAdd={addProject} onToggleStatus={toggleProjectStatus} onDelete={deleteProject} />} />

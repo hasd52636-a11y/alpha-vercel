@@ -1,0 +1,225 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  /* 品牌颜色 */
+  --alpha-primary: #7c3aed;
+  --alpha-secondary: #8b5cf6;
+  --alpha-tertiary: #a78bfa;
+  --alpha-light: #ddd6fe;
+  --alpha-ultralight: #f3e8ff;
+  
+  --gold-accent: #f59e0b;
+  --gold-light: #fbbf24;
+  --gold-ultralight: #fef3c7;
+  
+  /* 背景颜色 */
+  --bg-primary: #ffffff;
+  --bg-secondary: #f8fafc;
+  --bg-tertiary: #f1f5f9;
+  
+  /* 文本颜色 */
+  --text-primary: #1e293b;
+  --text-secondary: #475569;
+  --text-tertiary: #64748b;
+  
+  /* 毛玻璃效果 */
+  --glass-bg: rgba(255, 255, 255, 0.7);
+  --glass-border: rgba(229, 231, 235, 0.8);
+  --glass-blur: 20px;
+  
+  /* 阴影 */
+  --shadow-sm: 0 4px 12px rgba(124, 58, 237, 0.1);
+  --shadow-md: 0 8px 24px rgba(124, 58, 237, 0.15);
+  --shadow-lg: 0 16px 48px rgba(124, 58, 237, 0.2);
+  
+  /* 圆角 */
+  --radius-sm: 1rem;
+  --radius-md: 1.5rem;
+  --radius-lg: 2rem;
+  --radius-xl: 2.5rem;
+  --radius-2xl: 3rem;
+  
+  /* 渐变 */
+  --gradient-primary: linear-gradient(135deg, var(--alpha-primary), var(--alpha-secondary));
+  --gradient-secondary: linear-gradient(135deg, var(--alpha-light), var(--alpha-ultralight));
+  --gradient-gold: linear-gradient(135deg, var(--gold-accent), var(--gold-light));
+  
+  /* 光泽效果 */
+  --shine-effect: linear-gradient(45deg, rgba(255,255,255,0.4), rgba(255,255,255,0));
+}
+
+body {
+  font-family: 'Inter', 'Noto Sans SC', sans-serif;
+  background: var(--bg-secondary);
+  color: var(--text-primary);
+  overflow-x: hidden;
+}
+
+/* 自定义滚动条 */
+::-webkit-scrollbar {
+  width: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: rgba(0, 0, 0, 0.05);
+}
+
+::-webkit-scrollbar-thumb {
+  background: linear-gradient(var(--alpha-primary), var(--gold-accent));
+  border-radius: 10px;
+}
+
+/* 毛玻璃卡片效果 */
+.alpha-card {
+  background: var(--glass-bg);
+  backdrop-filter: blur(var(--glass-blur)) saturate(180%);
+  border: 1px solid var(--glass-border);
+  border-radius: var(--radius-xl);
+  box-shadow: var(--shadow-md);
+  position: relative;
+  overflow: hidden;
+  transition: all 0.3s ease;
+}
+
+.alpha-card::before {
+  content: '';
+  position: absolute;
+  top: -50%;
+  left: -50%;
+  width: 200%;
+  height: 200%;
+  background: var(--shine-effect);
+  transform: rotate(45deg);
+  opacity: 0;
+  transition: opacity 0.6s ease;
+}
+
+.alpha-card:hover {
+  transform: translateY(-4px);
+  box-shadow: var(--shadow-lg);
+  border-color: var(--alpha-light);
+}
+
+.alpha-card:hover::before {
+  opacity: 1;
+  animation: shine 2s ease-in-out;
+}
+
+@keyframes shine {
+  0% { transform: translateX(-100%) rotate(45deg); }
+  100% { transform: translateX(100%) rotate(45deg); }
+}
+
+/* 按钮效果 */
+.alpha-btn {
+  background: var(--gradient-primary);
+  color: white;
+  border: none;
+  border-radius: var(--radius-lg);
+  padding: 1rem 2rem;
+  font-weight: 600;
+  box-shadow: var(--shadow-md);
+  position: relative;
+  overflow: hidden;
+  transition: all 0.3s ease;
+}
+
+.alpha-btn::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: -100%;
+  width: 100%;
+  height: 100%;
+  background: var(--shine-effect);
+  transition: left 0.6s ease;
+}
+
+.alpha-btn:hover {
+  transform: translateY(-2px);
+  box-shadow: var(--shadow-lg);
+}
+
+.alpha-btn:hover::before {
+  left: 100%;
+}
+
+.alpha-btn:active {
+  transform: translateY(0);
+}
+
+/* 状态标签 */
+.alpha-status {
+  padding: 0.5rem 1rem;
+  border-radius: var(--radius-lg);
+  font-size: 0.875rem;
+  font-weight: 600;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.alpha-status.success {
+  background: rgba(16, 185, 129, 0.1);
+  color: #10b981;
+  border: 1px solid rgba(16, 185, 129, 0.2);
+}
+
+.alpha-status.warning {
+  background: rgba(245, 158, 11, 0.1);
+  color: #f59e0b;
+  border: 1px solid rgba(245, 158, 11, 0.2);
+}
+
+.alpha-status.error {
+  background: rgba(239, 68, 68, 0.1);
+  color: #ef4444;
+  border: 1px solid rgba(239, 68, 68, 0.2);
+}
+
+.alpha-status.info {
+  background: rgba(59, 130, 246, 0.1);
+  color: #3b82f6;
+  border: 1px solid rgba(59, 130, 246, 0.2);
+}
+
+/* 液体背景动画 */
+.liquid-bg {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  z-index: -1;
+  background: radial-gradient(circle at 50% 50%, var(--bg-tertiary) 0%, var(--bg-secondary) 100%);
+  overflow: hidden;
+}
+
+.blob {
+  position: absolute;
+  width: 800px;
+  height: 800px;
+  background: linear-gradient(135deg, var(--alpha-ultralight) 0%, var(--alpha-light) 100%);
+  filter: blur(120px);
+  border-radius: 50%;
+  opacity: 0.6;
+  animation: move 35s infinite alternate ease-in-out;
+}
+
+.blob-gold {
+  width: 600px;
+  height: 600px;
+  bottom: -100px;
+  right: -100px;
+  background: linear-gradient(135deg, var(--gold-ultralight) 0%, var(--gold-light) 100%);
+  animation-duration: 40s;
+  opacity: 0.5;
+}
+
+@keyframes move {
+  0% { transform: translate(-10%, -10%) rotate(0deg) scale(1); }
+  50% { transform: translate(15%, 10%) rotate(90deg) scale(1.1); }
+  100% { transform: translate(-5%, 15%) rotate(180deg) scale(1); }
+}

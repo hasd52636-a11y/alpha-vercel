@@ -1,0 +1,88 @@
+{
+  "hash": "4e3e1b51",
+  "configHash": "420dd0e4",
+  "lockfileHash": "bfb35b8c",
+  "browserHash": "130988a0",
+  "optimized": {
+    "react": {
+      "src": "../../node_modules/react/index.js",
+      "file": "react.js",
+      "fileHash": "a25f10ca",
+      "needsInterop": true
+    },
+    "react-dom": {
+      "src": "../../node_modules/react-dom/index.js",
+      "file": "react-dom.js",
+      "fileHash": "1aa1f840",
+      "needsInterop": true
+    },
+    "react-router-dom": {
+      "src": "../../node_modules/react-router-dom/dist/index.mjs",
+      "file": "react-router-dom.js",
+      "fileHash": "0b4dddfa",
+      "needsInterop": false
+    },
+    "lucide-react": {
+      "src": "../../node_modules/lucide-react/dist/esm/lucide-react.js",
+      "file": "lucide-react.js",
+      "fileHash": "b14ef65c",
+      "needsInterop": false
+    },
+    "zhipuai": {
+      "src": "../../node_modules/zhipuai/esm/index.js",
+      "file": "zhipuai.js",
+      "fileHash": "5f3a5a01",
+      "needsInterop": false
+    },
+    "react/jsx-dev-runtime": {
+      "src": "../../node_modules/react/jsx-dev-runtime.js",
+      "file": "react_jsx-dev-runtime.js",
+      "fileHash": "36f7494e",
+      "needsInterop": true
+    },
+    "react/jsx-runtime": {
+      "src": "../../node_modules/react/jsx-runtime.js",
+      "file": "react_jsx-runtime.js",
+      "fileHash": "583d4c55",
+      "needsInterop": true
+    },
+    "d3": {
+      "src": "../../node_modules/d3/src/index.js",
+      "file": "d3.js",
+      "fileHash": "f5908eeb",
+      "needsInterop": false
+    },
+    "react-dom/client": {
+      "src": "../../node_modules/react-dom/client.js",
+      "file": "react-dom_client.js",
+      "fileHash": "410b469b",
+      "needsInterop": true
+    },
+    "recharts": {
+      "src": "../../node_modules/recharts/es6/index.js",
+      "file": "recharts.js",
+      "fileHash": "d706bb10",
+      "needsInterop": false
+    }
+  },
+  "chunks": {
+    "multipart-parser-NYC2E3KK": {
+      "file": "multipart-parser-NYC2E3KK.js"
+    },
+    "chunk-LWXE4H46": {
+      "file": "chunk-LWXE4H46.js"
+    },
+    "chunk-IEPFHX47": {
+      "file": "chunk-IEPFHX47.js"
+    },
+    "chunk-LXOGWTAJ": {
+      "file": "chunk-LXOGWTAJ.js"
+    },
+    "chunk-EA3IZY6A": {
+      "file": "chunk-EA3IZY6A.js"
+    },
+    "chunk-DP4XHQAG": {
+      "file": "chunk-DP4XHQAG.js"
+    }
+  }
+}

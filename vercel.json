@@ -1,40 +1,43 @@
 {
   "version": 2,
-  "builds": [
+  "buildCommand": "npm run build",
+  "outputDirectory": "dist",
+  "framework": "vite",
+  "rewrites": [
     {
-      "src": "package.json",
-      "use": "@vercel/static-build",
-      "config": {
-        "distDir": "dist"
-      }
+      "source": "/api/chat",
+      "destination": "/api/chat.ts"
     },
     {
-      "src": "api/**/*.js",
-      "use": "@vercel/node",
-      "config": {
-        "maxDuration": 30
-      }
+      "source": "/api/knowledge",
+      "destination": "/api/knowledge.mjs"
     },
     {
-      "src": "api/**/*.ts",
-      "use": "@vercel/node",
-      "config": {
-        "maxDuration": 30
-      }
+      "source": "/api/data-export",
+      "destination": "/api/data-export.mjs"
     },
     {
-      "src": "api/**/*.mjs",
-      "use": "@vercel/node",
-      "config": {
-        "maxDuration": 30
-      }
+      "source": "/api/project/:path*",
+      "destination": "/api/project/[id].ts"
+    },
+    {
+      "source": "/api/zhipu/:path*",
+      "destination": "/api/zhipu/[...endpoint].js"
+    },
+    {
+      "source": "/api/ocr",
+      "destination": "/api/ocr.js"
+    },
+    {
+      "source": "/(.*)",
+      "destination": "/index.html"
     }
   ],
   "headers": [
     {
       "source": "/api/(.*)",
       "headers": [
-        { "key": "Access-Control-Allow-Origin", "value": "https://sora.wboke.com" },
+        { "key": "Access-Control-Allow-Origin", "value": "*" },
         { "key": "Access-Control-Allow-Methods", "value": "GET, POST, OPTIONS" },
         { "key": "Access-Control-Allow-Headers", "value": "Content-Type, Authorization" },
         { "key": "Access-Control-Max-Age", "value": "86400" }
@@ -60,36 +63,6 @@
         { "key": "X-XSS-Protection", "value": "1; mode=block" },
         { "key": "Referrer-Policy", "value": "strict-origin-when-cross-origin" }
       ]
-    }
-  ],
-  "routes": [
-    {
-      "src": "/api/chat",
-      "dest": "/api/chat.ts"
-    },
-    {
-      "src": "/api/knowledge",
-      "dest": "/api/knowledge.mjs"
-    },
-    {
-      "src": "/api/data-export",
-      "dest": "/api/data-export.mjs"
-    },
-    {
-      "src": "/api/project/(.*)",
-      "dest": "/api/project/[id].ts"
-    },
-    {
-      "src": "/api/zhipu/(.*)",
-      "dest": "/api/zhipu/[...endpoint].js"
-    },
-    {
-      "src": "/api/ocr",
-      "dest": "/api/ocr.js"
-    },
-    {
-      "src": "/(.*)",
-      "dest": "/index.html"
     }
   ],
   "env": {

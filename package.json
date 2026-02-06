@@ -1,5 +1,5 @@
 {
-  "name": "smartguide-ai",
+  "name": "alpha-01",
   "private": true,
   "version": "1.0.0",
   "type": "module",
@@ -11,13 +11,13 @@
     "build": "vite build",
     "preview": "vite preview",
     "vercel-build": "npm run build",
-    "optimize:init": "node -e \"import('./src/optimization-main.js').then(m => m.initializeOptimizer())\"",
+    "optimize:init": "node -e \"import('./src/optimization-main.ts').then(m => m.initializeOptimizer())\"",
     "optimize:enable-cache": "cross-env CACHE_OPTIMIZATION=true npm run optimize:init",
     "optimize:enable-data": "cross-env DATA_PROCESSING_ENABLED=true npm run optimize:init",
     "optimize:enable-io": "cross-env IO_OPTIMIZATION=true npm run optimize:init",
     "optimize:enable-full": "cross-env FULL_OPTIMIZATION=true npm run optimize:init",
-    "optimize:disable": "node -e \"import('./src/optimization-main.js').then(m => m.emergencyDisable())\"",
-    "optimize:status": "node -e \"import('./src/optimization-main.js').then(m => m.initializeOptimizer().then(opt => console.log(JSON.stringify(opt.getStatus(), null, 2))))\"",
+    "optimize:disable": "node -e \"import('./src/optimization-main.ts').then(m => m.emergencyDisable())\"",
+    "optimize:status": "node -e \"import('./src/optimization-main.ts').then(m => m.initializeOptimizer().then(opt => console.log(JSON.stringify(opt.getStatus(), null, 2))))\"",
     "lint": "eslint src --ext .ts,.tsx --max-warnings 10",
     "format": "prettier --write src/**/*.{ts,tsx,json,css}",
     "format:check": "prettier --check src/**/*.{ts,tsx,json,css}"
@@ -47,6 +47,7 @@
   "devDependencies": {
     "@types/node": "^22.14.0",
     "@vitejs/plugin-react": "^5.0.0",
+    "terser": "^5.46.0",
     "typescript": "~5.8.2",
     "vite": "^6.2.0"
   }

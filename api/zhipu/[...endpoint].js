@@ -2,11 +2,14 @@ const axios = require('axios');
 
 // 严格配置允许的来源
 const allowedOrigins = [
+  'https://sora2.wboke.com',
   'https://sora.wboke.com',
   'http://localhost:3003',
   'http://localhost:3000',
+  'http://localhost:3005',
   'http://127.0.0.1:3003',
-  'http://127.0.0.1:3000'
+  'http://127.0.0.1:3000',
+  'http://127.0.0.1:3005'
 ];
 
 // 验证来源是否允许

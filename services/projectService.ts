@@ -108,6 +108,7 @@ class ProjectService {
           const existingConfig = project.config || {} as Record<string, unknown>;
           const completeProject: ProductProject = {
             ...project,
+            status: 'active', // 强制所有项目为活跃状态
             config: {
               provider: (existingConfig.provider as string) || AIProvider.ZHIPU,
               voiceName: (existingConfig.voiceName as string) || 'tongtong',
